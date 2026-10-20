@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/env";
 
 const PUBLICAS = ["/login", "/redefinir-senha", "/auth/callback"];
 
@@ -7,7 +8,7 @@ export async function middleware(req: NextRequest) {
   if (process.env.PAINEL_OFFLINE === "1" && process.env.NODE_ENV !== "production") return NextResponse.next();
 
   let res = NextResponse.next({ request: req });
-  const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     cookies: {
       getAll: () => req.cookies.getAll(),
       setAll: (lista) => {
