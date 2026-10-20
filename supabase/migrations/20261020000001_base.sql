@@ -94,7 +94,8 @@ begin
   return new;
 end $$;
 
-create trigger on_auth_user_created
+-- "or replace": substitui o gatilho homônimo do painel anterior, se existir
+create or replace trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 

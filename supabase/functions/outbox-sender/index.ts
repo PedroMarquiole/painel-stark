@@ -1,9 +1,9 @@
 // Envia a fila mensagens_saida: e-mail (Resend) e WhatsApp (provedor configurável).
-// Chamada pelo banco (pg_net, a cada minuto e logo após cada inserção) com x-cron-secret.
+// Chamada pelo banco (pg_net, a cada minuto e logo após cada inserção) com x-cron-secret (Vault).
 // Idempotência e nova tentativa ficam no banco (reservar_mensagens / concluir_mensagem).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { emailHtml } from "../_shared/email.ts";
-import { igual, json } from "../_shared/http.ts";
+import { json } from "../_shared/http.ts";
 import { whatsappProvider } from "../_shared/whatsapp.ts";
 
 const env = (k: string) => Deno.env.get(k);
@@ -41,8 +41,9 @@ async function enviarEmail(m: Msg) {
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ erro: "metodo" }, 405);
-  const segredo = env("CRON_SECRET") ?? "";
-  if (!igual(segredo, req.headers.get("x-cron-secret") ?? "")) return json({ erro: "nao_autorizado" }, 401);
+  // O segredo fica no Vault do banco; quem chama é o próprio banco (pg_net)
+  const { data: autorizado } = await supabase.rpc("conferir_segredo_cron", { p_segredo: req.headers.get("x-cron-secret") ?? "" });
+  if (autorizado !== true) return json({ erro: "nao_autorizado" }, 401);
 
   // Sem provedor de e-mail configurado, a fila espera (não gasta tentativas)
   if (!env("RESEND_API_KEY")) return json({ enviadas: 0, aguardando: "RESEND_API_KEY" }, 200);

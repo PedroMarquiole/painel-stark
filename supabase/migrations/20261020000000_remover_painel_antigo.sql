@@ -1,11 +1,18 @@
 -- ════════════════════════════════════════════════════════════════════════════
--- Painel Stark · 0000 · Remove o painel anterior do projeto stark-dashboard
+-- Painel Stark · 0000 · Arquiva o painel anterior do projeto stark-dashboard
 --
 -- O projeto já tinha um painel (migrations 01–12 de 15/10/2026: pedidos,
--- clientes, equipe…). Os dados eram de teste — descarte confirmado pela Stark.
+-- clientes, equipe…), com dados de teste. Em vez de apagar, move tudo para o
+-- schema `legado` (fora da API, sem acesso de anon/authenticated). Reversível.
+-- Para remover de vez, quando quiser: drop schema legado cascade;
 -- Idempotente: num banco novo não faz nada. A conta em auth.users é mantida
--- e ganha perfil de admin em 0001.
+-- e ganha perfil de admin em 0001 (que também substitui o gatilho de cadastro).
 -- ════════════════════════════════════════════════════════════════════════════
+
+create schema if not exists legado;
+comment on schema legado is
+  'Painel anterior (15/10/2026), arquivado pelo Painel Stark em 20/10/2026. Dados de teste. Remover: drop schema legado cascade;';
+revoke all on schema legado from public;
 
 -- Tarefas agendadas antigas
 do $$
@@ -15,13 +22,18 @@ begin
   end if;
 end $$;
 
-drop trigger if exists on_auth_user_created on auth.users;
-
-drop table if exists
-  public.notificacoes, public.anexos, public.atividades, public.projeto_etapas,
-  public.projetos, public.propostas, public.pedidos, public.clientes, public.equipe,
-  public.modelos_email, public.motivos_perda, public.origens, public.servicos, public.etapas_funil
-  cascade;
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'notificacoes', 'anexos', 'atividades', 'projeto_etapas', 'projetos', 'propostas', 'pedidos',
+    'clientes', 'equipe', 'modelos_email', 'motivos_perda', 'origens', 'servicos', 'etapas_funil'
+  ] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('alter table public.%I set schema legado', t);
+    end if;
+  end loop;
+end $$;
 
 do $$
 declare f regprocedure;
@@ -39,11 +51,16 @@ begin
         'propostas_before_write', 'proximo_dia_util', 'registrar_pedido', 'set_updated_at', 'somar_dias_uteis'
       ])
   loop
-    execute format('drop function if exists %s cascade', f);
+    execute format('alter function %s set schema legado', f);
   end loop;
 end $$;
 
-drop type if exists
-  public.perfil_acesso, public.status_proposta, public.etapa_projeto,
-  public.situacao_projeto, public.tipo_atividade
-  cascade;
+do $$
+declare t text;
+begin
+  foreach t in array array['perfil_acesso', 'status_proposta', 'etapa_projeto', 'situacao_projeto', 'tipo_atividade'] loop
+    if to_regtype('public.' || t) is not null then
+      execute format('alter type public.%I set schema legado', t);
+    end if;
+  end loop;
+end $$;

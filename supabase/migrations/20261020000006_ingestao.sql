@@ -564,6 +564,27 @@ begin
     using v_url, jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', coalesce(v_segredo, ''));
 end $$;
 
+-- outbox-sender confere o segredo enviado pelo banco sem precisar de variável de ambiente
+create function public.conferir_segredo_cron(p_segredo text) returns boolean
+language plpgsql security definer set search_path = public as $$
+declare v text;
+begin
+  if to_regnamespace('vault') is null or coalesce(p_segredo, '') = '' then return false; end if;
+  execute $q$ select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret' $q$ into v;
+  return v is not null and v = p_segredo;
+end $$;
+
+-- Segredo gerado no próprio banco (nunca passa por ninguém)
+do $$
+begin
+  if to_regnamespace('vault') is not null then
+    execute $q$
+      select vault.create_secret(replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''), 'cron_secret')
+      where not exists (select 1 from vault.secrets where name = 'cron_secret')
+    $q$;
+  end if;
+end $$;
+
 create function public.mensagens_disparar() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
@@ -573,9 +594,12 @@ end $$;
 create trigger mensagens_saida_disparar after insert on public.mensagens_saida
   for each statement execute function public.mensagens_disparar();
 
--- ─── Agendamentos (só onde pg_cron existe) ──────────────────────────────────
+-- ─── Agendamentos (só onde pg_cron/pg_net existem — no Supabase, sim) ───────
 do $$
 begin
+  if exists (select 1 from pg_available_extensions where name = 'pg_net') then
+    create extension if not exists pg_net with schema extensions;
+  end if;
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
     perform cron.schedule('stark-verificar-sla', '*/5 * * * *', 'select public.verificar_sla()');
     perform cron.schedule('stark-outbox', '* * * * *', 'select public.disparar_outbox()');
@@ -612,7 +636,7 @@ begin
        'formatar_protocolo', 'rotulo_servico', 'normalizar_whatsapp', 'render_template', 'proximo_horario_comercial',
        'iniciar_execucao', 'concluir_execucao', 'enfileirar_mensagem', 'notificar', 'ids_equipe', 'escolher_responsavel',
        'registrar_lead', 'criar_lead_manual', 'responder_lead', 'verificar_sla', 'reservar_mensagens',
-       'concluir_mensagem', 'disparar_outbox', 'mensagens_disparar'])
+       'concluir_mensagem', 'disparar_outbox', 'mensagens_disparar', 'conferir_segredo_cron'])
   loop
     execute format('revoke execute on function %s from public, anon, authenticated', f);
     execute format('grant execute on function %s to service_role', f);

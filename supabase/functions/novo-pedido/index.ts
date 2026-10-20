@@ -8,7 +8,8 @@ import { erroDoBanco, normalizarPedido } from "../_shared/pedido.ts";
 const ALLOWED = (Deno.env.get("ALLOWED_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 if (ALLOWED.length === 0) console.warn("ALLOWED_ORIGINS vazio: aceitando qualquer origem");
 const ORIGENS = ALLOWED.length ? ALLOWED : ["*"];
-const SALT = Deno.env.get("IP_HASH_SALT") ?? "";
+// Sal do hash de IP: IP_HASH_SALT, ou a chave de serviço (secreta e estável) se não houver
+const SALT = Deno.env.get("IP_HASH_SALT") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false },
