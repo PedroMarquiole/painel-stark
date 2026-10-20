@@ -21,7 +21,7 @@ export function KpiCard({
   value: string;
   delta?: number; // fração: 0.12 = +12%
   goodWhen?: "up" | "down";
-  trend?: number[];
+  trend?: (number | null)[];
   hint?: string;
   href?: string;
   color?: string;
@@ -42,16 +42,20 @@ export function KpiCard({
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="num whitespace-nowrap text-xl font-medium">{value}</div>
-          {delta != null && (
+          {(delta != null || hint) && (
             <div
               className={cn(
                 "num mt-1 inline-flex items-center gap-0.5 text-xs",
                 good === null ? "text-fg-muted" : good ? "text-success" : "text-danger",
               )}
             >
-              <Icon className="size-3.5" aria-hidden />
-              {Math.abs(delta * 100).toFixed(0)}%
-              <span className="ml-1 font-sans text-fg-subtle">{hint ?? "vs. anterior"}</span>
+              {delta != null && (
+                <>
+                  <Icon className="size-3.5" aria-hidden />
+                  {Math.abs(delta * 100).toFixed(0)}%
+                </>
+              )}
+              <span className={cn("font-sans text-fg-subtle", delta != null && "ml-1")}>{hint ?? "vs. anterior"}</span>
             </div>
           )}
         </div>

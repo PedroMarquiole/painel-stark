@@ -1,0 +1,8 @@
+# Configuração usada pelo Supabase CLI (supabase functions deploy / db push)
+project_id = "stark-dashboard"
+
+[functions.novo-pedido]
+verify_jwt = false   # pública: chamada pelo formulário do site
+
+[functions.outbox-sender]
+verify_jwt = false   # autenticada por x-cron-secret (chamada pelo banco)

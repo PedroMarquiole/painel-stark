@@ -7,7 +7,7 @@ create table public.empresas (
   nome text not null,
   site text,
   setor text,
-  porte text,          -- [CONFIRMAR] faixas do Passo 2/3 do site
+  porte text,
   cnpj text unique,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -89,12 +89,12 @@ create table public.leads (
   negocio_id uuid references public.negocios (id) on delete set null,
   responsavel_id uuid references public.profiles (id) on delete set null,
 
-  -- Passo 1 (confirmado no site)
+  -- Passo 1
   servicos public.servico[] not null check (cardinality(servicos) >= 1),
   situacao_atual public.situacao_atual,
   dor text not null check (char_length(dor) between 1 and 1200),
 
-  -- Passos 2 e 3 [CONFIRMAR NO REPOSITÓRIO] — opcionais até lermos o form real
+  -- Passos 2 e 3 (contrato atual do site: empresa, prazo, investimento, origem, consentimento)
   nome_informado text not null,
   email_informado text,
   whatsapp_informado text,

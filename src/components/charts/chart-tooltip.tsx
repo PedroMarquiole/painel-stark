@@ -18,7 +18,7 @@ export function ChartTooltip({ active, payload, label, format = (v) => String(v)
         <p key={String(p.dataKey)} className="flex items-center gap-2">
           <span className="size-2 rounded-full" style={{ background: p.color }} />
           <span className="flex-1 text-fg-muted">{p.name}</span>
-          <span className="num text-fg">{format(Number(p.value))}</span>
+          <span className="num text-fg">{p.value == null ? "—" : format(Number(p.value))}</span>
         </p>
       ))}
     </div>

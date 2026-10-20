@@ -3,7 +3,7 @@ import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import { useId } from "react";
 
 /** Mini tendência para cartões de KPI. Sem eixo, sem tooltip: o número grande é a informação. */
-export function Sparkline({ data, color = "var(--c-series-1)" }: { data: number[]; color?: string }) {
+export function Sparkline({ data, color = "var(--c-series-1)" }: { data: (number | null)[]; color?: string }) {
   const id = useId().replace(/:/g, "");
   const points = data.map((v, i) => ({ i, v }));
   return (
@@ -15,7 +15,7 @@ export function Sparkline({ data, color = "var(--c-series-1)" }: { data: number[
             <stop offset="100%" stopColor={color} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill={`url(#sg-${id})`} isAnimationActive={false} dot={false} />
+        <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill={`url(#sg-${id})`} isAnimationActive={false} dot={false} connectNulls />
       </AreaChart>
     </ResponsiveContainer>
   );
