@@ -7,6 +7,8 @@ import { Dialog, Select } from "@/components/ui/dialog";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { ORIGENS, SERVICOS, SITUACOES, type Servico, type Situacao } from "@/lib/rotulos";
+import { chamar } from "@/lib/chamar";
+import { formatProtocolo } from "@/lib/utils";
 import { criarLead } from "@/app/(painel)/acoes";
 
 /** Lead que chegou por fora do site (telefone, indicação, evento): mesmas regras do formulário. */
@@ -16,17 +18,22 @@ export function NovoLead({ aberto, setAberto }: { aberto: boolean; setAberto: (v
   const [erro, setErro] = React.useState<string>();
   const [enviando, setEnviando] = React.useState(false);
 
-  async function enviar(form: FormData) {
+  async function enviar(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const elemento = e.currentTarget;
+    const form = new FormData(elemento);
     setEnviando(true);
     setErro(undefined);
-    const r = await criarLead({
+    const r = await chamar(criarLead({
       nome: String(form.get("nome") ?? ""), email: String(form.get("email") ?? ""), whatsapp: String(form.get("whatsapp") ?? ""),
       empresa: String(form.get("empresa") ?? ""), servicos, situacao_atual: String(form.get("situacao") ?? "") as Situacao | "",
       dor: String(form.get("dor") ?? ""), origem: String(form.get("origem") ?? ""),
-    });
+    }));
     setEnviando(false);
     if (!r.ok) return setErro(r.erro);
-    toast.success("Lead criado", { description: "Confirmação enviada ao cliente e equipe avisada." });
+    const numero = (r.dados as { numero?: number } | undefined)?.numero;
+    toast.success(numero ? `Lead ${formatProtocolo(numero)} criado` : "Lead criado", { description: "Aparece na caixa de entrada; a equipe foi avisada." });
+    elemento.reset();
     setAberto(false);
     setServicos([]);
     router.refresh();
@@ -45,7 +52,7 @@ export function NovoLead({ aberto, setAberto }: { aberto: boolean; setAberto: (v
         </>
       }
     >
-      <form id="form-novo-lead" action={enviar} className="grid gap-3 sm:grid-cols-2">
+      <form id="form-novo-lead" onSubmit={enviar} className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5 sm:col-span-2"><Label htmlFor="nl-nome">Nome</Label><Input id="nl-nome" name="nome" required autoFocus /></div>
         <div className="flex flex-col gap-1.5"><Label htmlFor="nl-email">E-mail</Label><Input id="nl-email" name="email" type="email" required /></div>
         <div className="flex flex-col gap-1.5"><Label htmlFor="nl-whats">WhatsApp</Label><Input id="nl-whats" name="whatsapp" placeholder="(11) 98765-4321" /></div>

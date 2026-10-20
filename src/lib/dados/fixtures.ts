@@ -92,6 +92,7 @@ export function negocios(): NegocioCard[] {
     ganho_em: p[6] === "ganho" ? iso(chegada + 25 * D) : null,
     perdido_em: p[6] === "perdido" ? iso(chegada + 10 * D) : null,
     motivo_perda: p[10],
+    previsao_fechamento: i === 10 ? iso(agora + 6 * D).slice(0, 10) : null,
     created_at: iso(chegada),
   }));
 }

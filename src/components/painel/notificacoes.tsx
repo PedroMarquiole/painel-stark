@@ -10,6 +10,7 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { cn, formatRelative } from "@/lib/utils";
 import { marcarNotificacoesLidas } from "@/app/(painel)/acoes";
 import type { Notificacao } from "@/lib/dados/tipos";
+import { useNow } from "@/hooks/use-now";
 import { usePainel } from "./contexto";
 
 /** Sino com contador; notificação nova chega em tempo real e vira toast com "Abrir". */
@@ -18,6 +19,7 @@ export function Notificacoes({ iniciais }: { iniciais: Notificacao[] }) {
   const router = useRouter();
   const [itens, setItens] = React.useState(iniciais);
   const naoLidas = itens.filter((n) => !n.lida_em).length;
+  const agora = useNow();
 
   React.useEffect(() => {
     if (offline) return;
@@ -47,7 +49,7 @@ export function Notificacoes({ iniciais }: { iniciais: Notificacao[] }) {
       onOpenChange={(aberto) => {
         if (!aberto && naoLidas) {
           setItens((xs) => xs.map((n) => ({ ...n, lida_em: n.lida_em ?? new Date().toISOString() })));
-          marcarNotificacoesLidas();
+          marcarNotificacoesLidas().catch(() => undefined);
         }
         if (aberto && "Notification" in window && Notification.permission === "default") Notification.requestPermission();
       }}
@@ -74,7 +76,7 @@ export function Notificacoes({ iniciais }: { iniciais: Notificacao[] }) {
                   <span className="min-w-0">
                     <span className="block truncate text-sm">{n.titulo}</span>
                     {n.corpo && <span className="block truncate text-xs text-fg-muted">{n.corpo}</span>}
-                    <span className="num text-xs text-fg-subtle">{formatRelative(new Date(n.created_at))}</span>
+                    <span className="num text-xs text-fg-subtle">{agora ? formatRelative(new Date(n.created_at), agora) : ""}</span>
                   </span>
                 </Link>
               </M.Item>

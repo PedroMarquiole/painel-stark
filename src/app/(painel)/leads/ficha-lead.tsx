@@ -15,6 +15,7 @@ import { SlaBadge } from "@/components/domain/sla-badge";
 import { LinhaTempo } from "@/components/painel/linha-tempo";
 import { usePainel } from "@/components/painel/contexto";
 import { formatBRL, formatProtocolo } from "@/lib/utils";
+import { chamar } from "@/lib/chamar";
 import { MOTIVOS_DESCARTE, ROTULO_ETAPA, SERVICOS, SITUACOES, rotuloOrigem } from "@/lib/rotulos";
 import type { Atividade, LeadDetalhe, LeadInbox } from "@/lib/dados/tipos";
 import { adicionarNota, atribuirLead, atualizarContato, carregarLead, registrarContato, responderLead } from "../acoes";
@@ -42,6 +43,7 @@ export function FichaLead({
   onDescartar: (lead: LeadInbox, motivo: string) => void;
 }) {
   const { perfil, equipe, nomeDe } = usePainel();
+  const podeAgir = perfil.papel !== "projetos";
   const [lead, setLead] = React.useState<LeadDetalhe | null>(null);
   const [erro, setErro] = React.useState(false);
   const [modo, setModo] = React.useState<"email" | "externo" | "nota" | "descartar" | null>(null);
@@ -57,9 +59,11 @@ export function FichaLead({
     return () => { vivo = false; };
   }, [id, aberto]);
 
-  // E / D (na lista) abrem direto na resposta ou no descarte
+  // E / D (na lista) abrem direto na resposta ou no descarte — cada comando vale uma vez só
+  const consumido = React.useRef(0);
   React.useEffect(() => {
-    if (!comando.n || !aberto) return;
+    if (!comando.n || !aberto || comando.n === consumido.current) return;
+    consumido.current = comando.n;
     const t = setTimeout(() => {
       setModo(comando.tipo === "responder" ? "email" : "descartar");
       if (comando.tipo === "responder") setTimeout(() => respostaRef.current?.focus(), 30);
@@ -75,7 +79,7 @@ export function FichaLead({
     if (!base) return;
     const assunto = String(form.get("assunto") ?? "");
     const corpo = String(form.get("corpo") ?? "");
-    const r = await responderLead(base.id, "email", assunto, corpo);
+    const r = await chamar(responderLead(base.id, "email", assunto, corpo));
     if (!r.ok) {
       toast.error(r.erro);
       return;
@@ -92,15 +96,18 @@ export function FichaLead({
     if (!base) return;
     const canal = String(form.get("canal")) as "whatsapp" | "ligacao" | "reuniao";
     const resumoTxt = String(form.get("resumo") ?? "");
-    const r = await registrarContato(base.contato_id, canal, resumoTxt, { leadId: base.id, negocioId: base.negocio_id ?? undefined });
+    const quandoLocal = String(form.get("quando") ?? "");
+    const quando = quandoLocal ? new Date(`${quandoLocal}:00-03:00`).toISOString() : undefined;
+    const r = await chamar(registrarContato(base.contato_id, canal, resumoTxt, { leadId: base.id, negocioId: base.negocio_id ?? undefined }, quando));
     if (!r.ok) {
       toast.error(r.erro);
       return;
     }
     const agora = new Date().toISOString();
+    const momento = quando ?? new Date().toISOString();
     adicionarAtividade({ tipo: canal === "whatsapp" ? "mensagem" : canal, canal, direcao: "saida", automatica: false, titulo: { whatsapp: "Respondeu pelo WhatsApp", ligacao: "Ligação", reuniao: "Reunião" }[canal], corpo: resumoTxt || null });
-    if (!base.primeira_resposta_em) onAtualizar(base.id, { primeira_resposta_em: agora, status: "em_atendimento" });
-    setLead((l) => l && { ...l, primeira_resposta_em: l.primeira_resposta_em ?? agora });
+    if (!base.primeira_resposta_em && new Date(momento) >= new Date(base.created_at)) onAtualizar(base.id, { primeira_resposta_em: momento, status: "em_atendimento" });
+    setLead((l) => l && { ...l, primeira_resposta_em: l.primeira_resposta_em ?? momento });
     setModo(null);
     toast.success("Contato registrado");
   }
@@ -108,7 +115,7 @@ export function FichaLead({
   async function salvarNota(form: FormData) {
     if (!base) return;
     const texto = String(form.get("nota") ?? "");
-    const r = await adicionarNota(base.contato_id, texto, { leadId: base.id, negocioId: base.negocio_id ?? undefined });
+    const r = await chamar(adicionarNota(base.contato_id, texto, { leadId: base.id, negocioId: base.negocio_id ?? undefined }));
     if (!r.ok) {
       toast.error(r.erro);
       return;
@@ -118,6 +125,7 @@ export function FichaLead({
   }
 
   const primeiroNome = base?.nome.split(" ")[0] ?? "";
+  const agoraLocal = new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 16); // datetime-local em São Paulo (UTC−3)
   const textoPadrao = `Olá, ${primeiroNome}!\n\nObrigado por contar o que está acontecendo. Pelo que você descreveu, dá para resolver isso de um jeito bem mais simples.\n\nPodemos marcar uma conversa de 30 minutos esta semana para entender os detalhes? Me diga dois horários que funcionam para você.\n\n${perfil.nome}\nStark — Software sob medida`;
 
   return (
@@ -131,7 +139,7 @@ export function FichaLead({
           {formatProtocolo(base.protocolo)}<span className="font-sans"> · {base.empresa ?? "Sem empresa"} · chegou via {rotuloOrigem(base.origem)} · {fmtData.format(new Date(base.created_at))}</span>
         </span>
       )}
-      actions={base && (
+      actions={base && podeAgir && (
         <Button variant="primary" size="sm" onClick={() => { setModo("email"); setTimeout(() => respostaRef.current?.focus(), 30); }}>
           <Send /> Responder
         </Button>
@@ -152,15 +160,19 @@ export function FichaLead({
               onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") (e.currentTarget as HTMLFormElement).requestSubmit(); }}>
               <div className="flex items-center gap-2 text-xs text-fg-muted">
                 <Mail className="size-3.5" aria-hidden /> Para <span className="text-fg">{lead?.contato.email ?? base.email}</span>
-                {lead?.contato.opt_out_email && <Badge tone="warning">pediu para não receber e-mail</Badge>}
               </div>
+              {lead?.contato.opt_out_email && (
+                <p className="rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
+                  Este cliente pediu para não receber e-mail. Se falou com ele por outro canal, use “Registrar contato”.
+                </p>
+              )}
               <Input name="assunto" defaultValue={`Seu pedido ${formatProtocolo(base.protocolo)} · Stark`} aria-label="Assunto" />
               <Textarea ref={respostaRef} name="corpo" defaultValue={textoPadrao} className="min-h-44" aria-label="Mensagem" />
               <div className="flex items-center justify-between">
                 <span className="text-xs text-fg-subtle">⌘ Enter envia</span>
                 <div className="flex gap-2">
                   <Button type="button" variant="ghost" size="sm" onClick={() => setModo(null)}>Cancelar</Button>
-                  <Button type="submit" variant="primary" size="sm"><Send /> Enviar e-mail</Button>
+                  <Button type="submit" variant="primary" size="sm" disabled={lead?.contato.opt_out_email}><Send /> Enviar e-mail</Button>
                 </div>
               </div>
             </form>
@@ -173,6 +185,10 @@ export function FichaLead({
                 <option value="ligacao">Ligação</option>
                 <option value="reuniao">Reunião</option>
               </Select>
+              <label className="flex items-center gap-2 text-xs text-fg-muted">
+                Quando foi
+                <Input type="datetime-local" name="quando" defaultValue={agoraLocal} max={agoraLocal} className="num h-7 w-auto" aria-label="Quando o contato aconteceu" />
+              </label>
               <Textarea name="resumo" placeholder="Resumo do que foi conversado (opcional)" className="min-h-20" />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="ghost" size="sm" onClick={() => setModo(null)}>Cancelar</Button>
@@ -199,7 +215,14 @@ export function FichaLead({
               </div>
             </div>
           )}
-          {!modo && (
+          {!modo && !podeAgir && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-fg-subtle">Seu papel (Projetos/Dev) vê os pedidos; quem responde é o comercial.</span>
+              <Button size="sm" onClick={() => setModo("nota")}>Nota</Button>
+              <Button size="sm" variant="ghost" asChild><Link href={`/clientes/${base.contato_id}`}>Ficha do cliente <ArrowUpRight /></Link></Button>
+            </div>
+          )}
+          {!modo && podeAgir && (
             <div className="flex flex-wrap gap-2">
               <Tooltip content="WhatsApp ainda não está integrado. Responda pelo celular e registre aqui.">
                 <Button size="sm" onClick={() => setModo("externo")}><MessageCircle /> Registrar contato</Button>
@@ -220,12 +243,13 @@ export function FichaLead({
               <Select
                 value={base.responsavel_id ?? ""}
                 aria-label="Responsável"
+                disabled={!podeAgir}
                 onChange={async (e) => {
                   const novo = e.target.value || null;
                   const antes = base.responsavel_id;
                   onAtualizar(base.id, { responsavel_id: novo });
                   setLead((l) => l && { ...l, responsavel_id: novo });
-                  const r = await atribuirLead(base.id, base.negocio_id, novo);
+                  const r = await chamar(atribuirLead(base.id, base.negocio_id, novo));
                   if (!r.ok) {
                     onAtualizar(base.id, { responsavel_id: antes });
                     setLead((l) => l && { ...l, responsavel_id: antes });
@@ -240,11 +264,11 @@ export function FichaLead({
             <Campo rotulo="Hoje resolve">{base.situacao_atual ? SITUACOES[base.situacao_atual] : "—"}</Campo>
             {lead && (
               <>
-                <Campo rotulo="Nome"><InlineField value={lead.contato.nome} onSave={async (v) => { const r = await atualizarContato(lead.contato.id, { nome: v }); if (!r.ok) { toast.error(r.erro); throw 0; } onAtualizar(base.id, { nome: v }); }} /></Campo>
-                <Campo rotulo="E-mail"><InlineField value={lead.contato.email ?? ""} onSave={async (v) => { const r = await atualizarContato(lead.contato.id, { email: v }); if (!r.ok) { toast.error(r.erro); throw 0; } }} /></Campo>
+                <Campo rotulo="Nome"><InlineField value={lead.contato.nome} onSave={async (v) => { const r = await chamar(atualizarContato(lead.contato.id, { nome: v })); if (!r.ok) { toast.error(r.erro); throw 0; } onAtualizar(base.id, { nome: v }); }} /></Campo>
+                <Campo rotulo="E-mail"><InlineField value={lead.contato.email ?? ""} onSave={async (v) => { const r = await chamar(atualizarContato(lead.contato.id, { email: v })); if (!r.ok) { toast.error(r.erro); throw 0; } }} /></Campo>
                 <Campo rotulo="WhatsApp">
                   <span className="flex items-center gap-1">
-                    <InlineField mono value={lead.contato.whatsapp ?? ""} onSave={async (v) => { const r = await atualizarContato(lead.contato.id, { whatsapp: v }); if (!r.ok) { toast.error(r.erro); throw 0; } }} />
+                    <InlineField mono value={lead.contato.whatsapp ?? ""} onSave={async (v) => { const r = await chamar(atualizarContato(lead.contato.id, { whatsapp: v })); if (!r.ok) { toast.error(r.erro); throw 0; } }} />
                     {lead.contato.whatsapp && (
                       <Button variant="ghost" size="icon-sm" asChild aria-label="Abrir conversa no WhatsApp">
                         <a href={`https://wa.me/${lead.contato.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá, ${primeiroNome}! Aqui é ${perfil.nome.split(" ")[0]}, da Stark.`)}`} target="_blank" rel="noreferrer"><Phone /></a>

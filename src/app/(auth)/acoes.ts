@@ -2,6 +2,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { supabaseServidor } from "@/lib/supabase/server";
+import { caminhoInterno } from "@/lib/redirect";
 
 export type EstadoForm = { erro?: string; ok?: string } | undefined;
 
@@ -16,7 +17,7 @@ export async function entrar(_: EstadoForm, form: FormData): Promise<EstadoForm>
   if (error) {
     return { erro: error.message.includes("Invalid login") ? "E-mail ou senha incorretos." : "Não foi possível entrar agora. Tente de novo." };
   }
-  redirect(voltar.startsWith("/") && !voltar.startsWith("//") ? voltar : "/");
+  redirect(caminhoInterno(voltar, "https://painel.interno"));
 }
 
 export async function esqueciSenha(_: EstadoForm, form: FormData): Promise<EstadoForm> {

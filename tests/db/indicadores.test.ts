@@ -25,6 +25,12 @@ describe("painel_indicadores", () => {
     expect(k.pipeline_ponderado).toBeGreaterThan(0);
     expect(k.sla_agora.abertos).toBeGreaterThanOrEqual(k.sla_agora.estourados);
 
+    // descartado (spam/teste) não conta como SLA perdido
+    const antes = k.sla_pct.atual;
+    await db.query(`update leads set status = 'descartado', motivo_descarte = 'Spam ou teste' where primeira_resposta_em is null and sla_vence_em < now()`);
+    const k2 = (await asUser(db, ADMIN, () => db.query<{ k: K }>(`select painel_indicadores(30) k`))).rows[0].k;
+    expect(k2.sla_pct.atual).toBeGreaterThanOrEqual(antes);
+
     // anônimo não executa
     await expect(asUser(db, null, () => db.query(`select painel_indicadores(30)`))).rejects.toThrow(/permission denied/);
   }, 60_000);

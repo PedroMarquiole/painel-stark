@@ -21,7 +21,7 @@ export function KpiCard({
   value: string;
   delta?: number; // fração: 0.12 = +12%
   goodWhen?: "up" | "down";
-  trend?: number[];
+  trend?: (number | null)[];
   hint?: string;
   href?: string;
   color?: string;

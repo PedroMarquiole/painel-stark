@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  DndContext, DragOverlay, KeyboardSensor, PointerSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors,
+  DndContext, DragOverlay, KeyboardCode, KeyboardSensor, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { ArrowUpRight, CalendarClock } from "lucide-react";
@@ -19,7 +19,8 @@ import { usePainel } from "@/components/painel/contexto";
 import { cn, formatBRL, formatProtocolo } from "@/lib/utils";
 import { MOTIVOS_PERDA, ROTULO_ETAPA, SERVICOS, type Etapa, type MotivoPerda } from "@/lib/rotulos";
 import type { EtapaConfig, NegocioCard } from "@/lib/dados/tipos";
-import { atualizarNegocio, moverNegocio } from "../acoes";
+import { chamar } from "@/lib/chamar";
+import { atualizarNegocio, desfazerMovimento, moverNegocio } from "../acoes";
 
 const DIA = 86_400_000;
 const compacto = (v: number) =>
@@ -60,16 +61,31 @@ function Cartao({ n, limite, arrastando, onAbrir }: { n: NegocioCard; limite: nu
   );
 }
 
-function Arrastavel({ n, limite, onAbrir }: { n: NegocioCard; limite: number | null; onAbrir: () => void }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: n.id });
+function Arrastavel({ n, limite, onAbrir, somenteLeitura }: { n: NegocioCard; limite: number | null; onAbrir: () => void; somenteLeitura: boolean }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: n.id, disabled: somenteLeitura });
   return (
-    <div ref={setNodeRef} {...listeners} {...attributes} aria-roledescription="card arrastável" className={cn("cursor-grab touch-manipulation", isDragging && "opacity-30")}>
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      aria-roledescription="card arrastável"
+      aria-label={`${n.titulo}. Enter abre; Espaço pega para arrastar.`}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onAbrir();
+          return;
+        }
+        listeners?.onKeyDown?.(e);
+      }}
+      className={cn(somenteLeitura ? "cursor-pointer" : "cursor-grab touch-manipulation", "rounded-lg focus-visible:outline-2 focus-visible:outline-accent", isDragging && "opacity-30")}
+    >
       <Cartao n={n} limite={limite} onAbrir={onAbrir} />
     </div>
   );
 }
 
-function Coluna({ e, itens, onAbrir }: { e: EtapaConfig; itens: NegocioCard[]; onAbrir: (id: string) => void }) {
+function Coluna({ e, itens, onAbrir, somenteLeitura }: { e: EtapaConfig; itens: NegocioCard[]; onAbrir: (id: string) => void; somenteLeitura: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: e.etapa });
   const total = itens.reduce((s, n) => s + (n.valor_estimado ?? 0), 0);
   const ponderado = itens.reduce((s, n) => s + ((n.valor_estimado ?? 0) * n.probabilidade) / 100, 0);
@@ -95,8 +111,8 @@ function Coluna({ e, itens, onAbrir }: { e: EtapaConfig; itens: NegocioCard[]; o
         )}
       </header>
       <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
-        {itens.map((n) => <Arrastavel key={n.id} n={n} limite={e.dias_alerta_parado} onAbrir={() => onAbrir(n.id)} />)}
-        {itens.length === 0 && <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-fg-subtle">Arraste um card para cá</p>}
+        {itens.map((n) => <Arrastavel key={n.id} n={n} limite={e.dias_alerta_parado} onAbrir={() => onAbrir(n.id)} somenteLeitura={somenteLeitura} />)}
+        {itens.length === 0 && <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-fg-subtle">{somenteLeitura ? "Vazio" : "Arraste um card para cá"}</p>}
       </div>
     </section>
   );
@@ -110,31 +126,45 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
   const [aberto, setAberto] = React.useState<string | null>(null);
   const [escopo, setEscopo] = React.useState<"todos" | "meus">("todos");
   React.useEffect(() => setNegocios(iniciais), [iniciais]);
+  const negociosRef = React.useRef(negocios);
+  negociosRef.current = negocios;
 
+  const somenteLeitura = perfil.papel === "projetos";
+  // Mouse e toque separados: o PointerSensor capturava o toque antes do TouchSensor (arrastar não funcionava no celular)
   const sensores = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
-    useSensor(KeyboardSensor),
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
+    useSensor(KeyboardSensor, {
+      keyboardCodes: { start: [KeyboardCode.Space], cancel: [KeyboardCode.Esc], end: [KeyboardCode.Space, KeyboardCode.Enter] },
+    }),
   );
 
   const visiveis = negocios.filter((n) => escopo === "todos" || n.responsavel_id === perfil.id);
   const porEtapa = (e: Etapa) => visiveis.filter((n) => n.etapa === e).sort((a, b) => a.ordem - b.ordem);
 
-  const agora = new Date();
-  const iniMes = new Date(agora.getFullYear(), agora.getMonth(), 1).getTime();
-  const iniTri = new Date(agora.getFullYear(), Math.floor(agora.getMonth() / 3) * 3, 1).getTime();
+  // Mês e trimestre no fuso de São Paulo (não no fuso de quem abre a página)
+  const periodo = (iso: string) => {
+    const [a, m] = iso.slice(0, 7).split("-").map(Number);
+    return { mes: `${a}-${m}`, tri: `${a}-${Math.ceil(m / 3)}` };
+  };
+  const hoje = periodo(new Date(Date.now() - 3 * 3_600_000).toISOString());
+  const emSp = (iso: string) => periodo(new Date(new Date(iso).getTime() - 3 * 3_600_000).toISOString());
   const abertos = visiveis.filter((n) => n.etapa !== "ganho" && n.etapa !== "perdido");
+  const ponderado = (n: NegocioCard) => ((n.valor_estimado ?? 0) * n.probabilidade) / 100;
+  const ganhos = visiveis.filter((n) => n.etapa === "ganho" && n.ganho_em);
+  const soma = (xs: NegocioCard[], f: (n: NegocioCard) => number) => xs.reduce((s, n) => s + f(n), 0);
   const resumo = {
-    aberto: abertos.reduce((s, n) => s + (n.valor_estimado ?? 0), 0),
-    ponderado: abertos.reduce((s, n) => s + ((n.valor_estimado ?? 0) * n.probabilidade) / 100, 0),
-    mes: visiveis.filter((n) => n.etapa === "ganho" && n.ganho_em && +new Date(n.ganho_em) >= iniMes).reduce((s, n) => s + (n.valor_estimado ?? 0), 0),
-    tri: visiveis.filter((n) => n.etapa === "ganho" && n.ganho_em && +new Date(n.ganho_em) >= iniTri).reduce((s, n) => s + (n.valor_estimado ?? 0), 0),
+    aberto: soma(abertos, (n) => n.valor_estimado ?? 0),
+    ponderado: soma(abertos, ponderado),
+    // Previsão = já ganho no período + ponderado do que tem fechamento previsto no período
+    mes: soma(ganhos.filter((n) => emSp(n.ganho_em!).mes === hoje.mes), (n) => n.valor_estimado ?? 0)
+       + soma(abertos.filter((n) => n.previsao_fechamento && periodo(n.previsao_fechamento).mes === hoje.mes), ponderado),
+    tri: soma(ganhos.filter((n) => emSp(n.ganho_em!).tri === hoje.tri), (n) => n.valor_estimado ?? 0)
+       + soma(abertos.filter((n) => n.previsao_fechamento && periodo(n.previsao_fechamento).tri === hoje.tri), ponderado),
   };
 
   async function aplicar(id: string, para: Etapa, motivo?: MotivoPerda, detalhe?: string) {
     const atual = negocios.find((n) => n.id === id)!;
-    const de = atual.etapa;
-    const ordemAntes = atual.ordem;
     const ordem = Math.max(0, ...negocios.filter((n) => n.etapa === para).map((n) => n.ordem)) + 1;
     const prob = etapas.find((e) => e.etapa === para)?.probabilidade_padrao ?? atual.probabilidade;
     const marca = new Date().toISOString();
@@ -142,7 +172,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
       ...n, etapa: para, ordem, probabilidade: prob, etapa_desde: marca, motivo_perda: motivo ?? null,
       ganho_em: para === "ganho" ? marca : null, perdido_em: para === "perdido" ? marca : null,
     } : n)));
-    const r = await moverNegocio(id, para, ordem, motivo, detalhe);
+    const r = await chamar(moverNegocio(id, para, ordem, motivo, detalhe));
     if (!r.ok) {
       setNegocios((xs) => xs.map((n) => (n.id === id ? atual : n)));
       toast.error(r.erro);
@@ -152,9 +182,14 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
       action: {
         label: "Desfazer",
         onClick: async () => {
+          const depois = negociosRef.current.find((n) => n.id === id);
           setNegocios((xs) => xs.map((n) => (n.id === id ? atual : n)));
-          const u = await moverNegocio(id, de, ordemAntes, atual.motivo_perda);
-          if (!u.ok) toast.error(u.erro);
+          // restaura etapa, ordem, datas e probabilidade como estavam antes de mover
+          const u = await chamar(desfazerMovimento(atual));
+          if (!u.ok) {
+            if (depois) setNegocios((xs) => xs.map((n) => (n.id === id ? depois : n)));
+            toast.error(u.erro);
+          }
         },
       },
     });
@@ -178,14 +213,16 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
       <div className="flex flex-wrap items-end gap-x-8 gap-y-3 border-b border-border px-4 pb-4 pt-5 sm:px-6">
         <div>
           <h1 className="text-xl font-semibold">Funil</h1>
-          <p className="text-sm text-fg-muted">Arraste os cards entre as etapas. Toda mudança entra na linha do tempo.</p>
+          <p className="text-sm text-fg-muted">
+            {somenteLeitura ? "Visualização: quem move os cards é o comercial." : "Arraste os cards entre as etapas (Espaço pelo teclado). Toda mudança entra na linha do tempo."}
+          </p>
         </div>
         <dl className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
           {[
             ["Pipeline aberto", resumo.aberto],
             ["Ponderado (previsão)", resumo.ponderado],
-            ["Ganho no mês", resumo.mes],
-            ["Ganho no trimestre", resumo.tri],
+            ["Previsão do mês", resumo.mes],
+            ["Previsão do trimestre", resumo.tri],
           ].map(([r, v]) => (
             <div key={r as string}>
               <dt className="text-xs text-fg-muted">{r}</dt>
@@ -199,7 +236,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
 
       <DndContext id="funil" sensors={sensores} onDragStart={(e: DragStartEvent) => setArrastando(String(e.active.id))} onDragEnd={soltar} onDragCancel={() => setArrastando(null)}>
         <div className="flex flex-1 gap-3 overflow-x-auto p-4 sm:px-6">
-          {etapas.map((e) => <Coluna key={e.etapa} e={e} itens={porEtapa(e.etapa)} onAbrir={setAberto} />)}
+          {etapas.map((e) => <Coluna key={e.etapa} e={e} itens={porEtapa(e.etapa)} onAbrir={setAberto} somenteLeitura={somenteLeitura} />)}
         </div>
         <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(0.2,0.8,0.2,1)" }}>
           {ativo ? <div className="w-[256px]"><Cartao n={ativo} limite={null} arrastando /></div> : null}
@@ -227,6 +264,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
               <Select
                 value={selecionado.etapa}
                 aria-label="Etapa"
+                disabled={somenteLeitura}
                 onChange={(e) => {
                   const para = e.target.value as Etapa;
                   if (para === "perdido") setPerda({ id: selecionado.id, de: selecionado.etapa, ordem: selecionado.ordem });
@@ -239,7 +277,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
             <dt className="text-fg-muted">Título</dt>
             <dd className="min-w-0">
               <InlineField value={selecionado.titulo} onSave={async (v) => {
-                const r = await atualizarNegocio(selecionado.id, { titulo: v });
+                const r = await chamar(atualizarNegocio(selecionado.id, { titulo: v }));
                 if (!r.ok) { toast.error(r.erro); throw 0; }
                 setNegocios((xs) => xs.map((n) => (n.id === selecionado.id ? { ...n, titulo: v } : n)));
               }} />
@@ -249,7 +287,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
               <InlineField mono placeholder="Informar valor" value={selecionado.valor_estimado ? String(selecionado.valor_estimado) : ""} onSave={async (v) => {
                 const valor = v.trim() ? Number(v.replace(/[^\d,]/g, "").replace(",", ".")) : null;
                 if (valor !== null && Number.isNaN(valor)) { toast.error("Valor inválido"); throw 0; }
-                const r = await atualizarNegocio(selecionado.id, { valor_estimado: valor });
+                const r = await chamar(atualizarNegocio(selecionado.id, { valor_estimado: valor }));
                 if (!r.ok) { toast.error(r.erro); throw 0; }
                 setNegocios((xs) => xs.map((n) => (n.id === selecionado.id ? { ...n, valor_estimado: valor } : n)));
               }} />
@@ -259,7 +297,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
               <InlineField mono value={String(selecionado.probabilidade)} onSave={async (v) => {
                 const p = Math.max(0, Math.min(100, Math.round(Number(v))));
                 if (Number.isNaN(p)) { toast.error("Use um número de 0 a 100"); throw 0; }
-                const r = await atualizarNegocio(selecionado.id, { probabilidade: p });
+                const r = await chamar(atualizarNegocio(selecionado.id, { probabilidade: p }));
                 if (!r.ok) { toast.error(r.erro); throw 0; }
                 setNegocios((xs) => xs.map((n) => (n.id === selecionado.id ? { ...n, probabilidade: p } : n)));
               }} />
@@ -269,16 +307,42 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
               <Select
                 value={selecionado.responsavel_id ?? ""}
                 aria-label="Responsável"
+                disabled={somenteLeitura}
                 onChange={async (e) => {
                   const v = e.target.value || null;
+                  const antes = selecionado.responsavel_id;
                   setNegocios((xs) => xs.map((n) => (n.id === selecionado.id ? { ...n, responsavel_id: v } : n)));
-                  const r = await atualizarNegocio(selecionado.id, { responsavel_id: v });
-                  if (!r.ok) toast.error(r.erro);
+                  const r = await chamar(atualizarNegocio(selecionado.id, { responsavel_id: v }));
+                  if (!r.ok) {
+                    setNegocios((xs) => xs.map((n) => (n.id === selecionado.id ? { ...n, responsavel_id: antes } : n)));
+                    toast.error(r.erro);
+                  }
                 }}
               >
                 <option value="">Sem responsável</option>
                 {equipe.filter((p) => p.papel !== "projetos").map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
               </Select>
+            </dd>
+            <dt className="text-fg-muted">Fechamento previsto</dt>
+            <dd>
+              <Input
+                type="date"
+                className="num h-8 w-auto"
+                aria-label="Fechamento previsto"
+                disabled={somenteLeitura || selecionado.etapa === "ganho" || selecionado.etapa === "perdido"}
+                defaultValue={selecionado.previsao_fechamento ?? ""}
+                key={selecionado.id}
+                onChange={async (e) => {
+                  const v = e.target.value || null;
+                  const antes = selecionado.previsao_fechamento;
+                  setNegocios((xs) => xs.map((n) => (n.id === selecionado.id ? { ...n, previsao_fechamento: v } : n)));
+                  const r = await chamar(atualizarNegocio(selecionado.id, { previsao_fechamento: v }));
+                  if (!r.ok) {
+                    setNegocios((xs) => xs.map((n) => (n.id === selecionado.id ? { ...n, previsao_fechamento: antes } : n)));
+                    toast.error(r.erro);
+                  }
+                }}
+              />
             </dd>
             <dt className="text-fg-muted">Serviços</dt>
             <dd className="flex flex-wrap gap-1">{selecionado.servicos.map((s) => <Badge key={s} tone="outline">{SERVICOS[s]}</Badge>)}</dd>

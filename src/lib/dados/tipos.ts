@@ -73,6 +73,7 @@ export interface NegocioCard {
   ganho_em: string | null;
   perdido_em: string | null;
   motivo_perda: MotivoPerda | null;
+  previsao_fechamento: string | null;
   created_at: string;
 }
 

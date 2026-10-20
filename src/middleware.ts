@@ -28,9 +28,8 @@ export async function middleware(req: NextRequest) {
     url.searchParams.set("voltar", req.nextUrl.pathname + req.nextUrl.search);
     return NextResponse.redirect(url);
   }
-  if (data.user && req.nextUrl.pathname === "/login") {
-    return NextResponse.redirect(new URL("/", req.url));
-  }
+  // Quem já está logado e abre /login é tratado na própria página (conta ativa → painel;
+  // conta desativada → aviso). Redirecionar daqui criaria um laço com o layout do painel.
   return res;
 }
 

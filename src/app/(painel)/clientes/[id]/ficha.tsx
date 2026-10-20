@@ -15,6 +15,7 @@ import { formatBRL, formatProtocolo } from "@/lib/utils";
 import { MOTIVOS_PERDA, ROTULO_ETAPA, SERVICOS } from "@/lib/rotulos";
 import type { Ficha } from "@/lib/dados/consultas";
 import type { Atividade } from "@/lib/dados/tipos";
+import { chamar } from "@/lib/chamar";
 import { adicionarNota, atualizarContato } from "../../acoes";
 
 const fmtDia = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Sao_Paulo" });
@@ -40,17 +41,22 @@ export function Ficha360({ ficha }: { ficha: Ficha }) {
   const [nota, setNota] = React.useState("");
 
   const salvar = (campo: "nome" | "email" | "whatsapp" | "cargo") => async (v: string) => {
-    const r = await atualizarContato(c.id, { [campo]: v });
+    const r = await chamar(atualizarContato(c.id, { [campo]: v }));
     if (!r.ok) { toast.error(r.erro); throw 0; }
   };
 
   async function enviarNota() {
     const texto = nota.trim();
     if (!texto) return;
+    const id = crypto.randomUUID();
     setNota("");
-    setAtividades((xs) => [{ id: crypto.randomUUID(), tipo: "nota", canal: "nota", direcao: "interna", automatica: false, titulo: "Nota", corpo: texto, ocorreu_em: new Date().toISOString(), autor_nome: perfil.nome }, ...xs]);
-    const r = await adicionarNota(c.id, texto, { leadId: ficha.pedidos[0]?.id, negocioId: ficha.negocios[0]?.id });
-    if (!r.ok) toast.error(r.erro);
+    setAtividades((xs) => [{ id, tipo: "nota", canal: "nota", direcao: "interna", automatica: false, titulo: "Nota", corpo: texto, ocorreu_em: new Date().toISOString(), autor_nome: perfil.nome }, ...xs]);
+    const r = await chamar(adicionarNota(c.id, texto, { leadId: ficha.pedidos[0]?.id, negocioId: ficha.negocios[0]?.id }));
+    if (!r.ok) {
+      setAtividades((xs) => xs.filter((a) => a.id !== id));
+      setNota(texto);
+      toast.error(r.erro);
+    }
   }
 
   return (
@@ -84,8 +90,8 @@ export function Ficha360({ ficha }: { ficha: Ficha }) {
         </Card>
         <Card className="flex flex-col gap-3 p-card">
           <p className="text-xs font-medium text-fg-subtle">Preferências de contato (LGPD)</p>
-          <Alternar rotulo="Não quer receber e-mail" valor={optEmail} onChange={async (v) => { setOptEmail(v); const r = await atualizarContato(c.id, { opt_out_email: v }); if (!r.ok) { setOptEmail(!v); toast.error(r.erro); } }} />
-          <Alternar rotulo="Não quer receber WhatsApp" valor={optWhats} onChange={async (v) => { setOptWhats(v); const r = await atualizarContato(c.id, { opt_out_whatsapp: v }); if (!r.ok) { setOptWhats(!v); toast.error(r.erro); } }} />
+          <Alternar rotulo="Não quer receber e-mail" valor={optEmail} onChange={async (v) => { setOptEmail(v); const r = await chamar(atualizarContato(c.id, { opt_out_email: v })); if (!r.ok) { setOptEmail(!v); toast.error(r.erro); } }} />
+          <Alternar rotulo="Não quer receber WhatsApp" valor={optWhats} onChange={async (v) => { setOptWhats(v); const r = await chamar(atualizarContato(c.id, { opt_out_whatsapp: v })); if (!r.ok) { setOptWhats(!v); toast.error(r.erro); } }} />
           <p className="text-xs text-fg-subtle">Automações respeitam isso; mensagens bloqueadas ficam registradas.</p>
         </Card>
       </aside>

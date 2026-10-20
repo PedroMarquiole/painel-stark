@@ -49,7 +49,7 @@ export function Inicio({ k, nome }: { k: Indicadores; nome: string }) {
       <div className="grid gap-gap sm:grid-cols-3">
         {[
           { rotulo: "Sem resposta agora", n: k.sla_agora.abertos, Icone: Clock, cor: "text-fg", href: "/leads" },
-          { rotulo: "Vencendo em menos de 4h", n: k.sla_agora.vencendo, Icone: AlertTriangle, cor: "text-warning", href: "/leads" },
+          { rotulo: "Vencendo em menos de 4h", n: k.sla_agora.vencendo, Icone: AlertTriangle, cor: "text-warning", href: "/leads?visao=vencendo" },
           { rotulo: "SLA estourado", n: k.sla_agora.estourados, Icone: Flame, cor: "text-danger", href: "/leads?visao=estourados" },
         ].map(({ rotulo, n, Icone, cor, href }) => (
           <Link key={rotulo} href={href} className="flex items-center gap-3 rounded-lg border border-border bg-raised px-card py-3 transition-colors hover:border-border-strong">
@@ -61,11 +61,11 @@ export function Inicio({ k, nome }: { k: Indicadores; nome: string }) {
       </div>
 
       <div className="grid gap-gap sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Leads recebidos" value={String(k.leads.atual ?? 0)} delta={variacao(k.leads)} hint={hint} trend={serie.map((s) => s.leads)} href="/leads?visao=todos" />
+        <KpiCard label="Leads recebidos" value={String(k.leads.atual ?? 0)} delta={variacao(k.leads)} hint={hint} trend={serie.map((s) => s.leads)} href={`/leads?visao=todos&dias=${k.dias}`} />
         <KpiCard label="1ª resposta (média)" value={horas(k.primeira_resposta_horas.atual)} delta={variacao(k.primeira_resposta_horas)} goodWhen="down" hint={hint}
-          trend={serie.map((s) => s.resposta_horas ?? 0)} color="var(--c-series-2)" href="/leads?visao=todos" />
+          trend={serie.map((s) => s.resposta_horas)} color="var(--c-series-2)" href={`/leads?visao=todos&dias=${k.dias}`} />
         <KpiCard label="Dentro do SLA" value={k.sla_pct.atual == null ? "—" : `${k.sla_pct.atual}%`} delta={variacao(k.sla_pct)} hint={hint}
-          trend={serie.map((s) => s.sla_pct ?? 0)} color="var(--c-series-3)" href="/leads?visao=estourados" />
+          trend={serie.map((s) => s.sla_pct)} color="var(--c-series-3)" href={`/leads?visao=todos&dias=${k.dias}`} />
         <KpiCard label="Receita fechada" value={mil(k.receita.atual)} delta={variacao(k.receita)} hint={hint}
           trend={serie.map((s) => s.receita)} color="var(--c-series-4)" href="/funil" />
         <KpiCard label="Taxa de ganho" value={k.taxa_ganho_pct.atual == null ? "—" : `${k.taxa_ganho_pct.atual}%`} delta={variacao(k.taxa_ganho_pct)} hint={hint} href="/funil" />
@@ -86,7 +86,7 @@ export function Inicio({ k, nome }: { k: Indicadores; nome: string }) {
         <Card>
           <CardHeader title="Leads por serviço" />
           <div className="p-card pt-2">
-            <BarrasHorizontais nome="Leads" dados={k.por_servico.map((s) => ({ rotulo: SERVICOS[s.servico], n: s.n, chave: s.servico }))} href={() => "/leads?visao=todos"} />
+            <BarrasHorizontais nome="Leads" dados={k.por_servico.map((s) => ({ rotulo: SERVICOS[s.servico], n: s.n, chave: s.servico }))} href={(c) => `/leads?visao=todos&dias=${k.dias}&servico=${c}`} />
           </div>
         </Card>
         <Card>
@@ -96,14 +96,14 @@ export function Inicio({ k, nome }: { k: Indicadores; nome: string }) {
         <Card>
           <CardHeader title="Origem dos leads" />
           <div className="p-card pt-2">
-            <BarrasHorizontais nome="Leads" cor="var(--c-series-2)" dados={k.por_origem.map((o) => ({ rotulo: rotuloOrigem(o.origem), n: o.n, chave: o.origem }))} href={() => "/leads?visao=todos"} />
+            <BarrasHorizontais nome="Leads" cor="var(--c-series-2)" dados={k.por_origem.map((o) => ({ rotulo: rotuloOrigem(o.origem), n: o.n, chave: o.origem }))} href={(c) => `/leads?visao=todos&dias=${k.dias}&origem=${c}`} />
           </div>
         </Card>
         <div className="grid gap-gap md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
           <Card>
             <CardHeader title="Como resolvem hoje" />
             <div className="p-card pt-2">
-              <BarrasHorizontais nome="Leads" cor="var(--c-series-3)" dados={k.por_situacao.map((s) => ({ rotulo: SITUACOES[s.situacao as keyof typeof SITUACOES] ?? s.situacao, n: s.n, chave: s.situacao }))} />
+              <BarrasHorizontais nome="Leads" cor="var(--c-series-3)" dados={k.por_situacao.map((s) => ({ rotulo: SITUACOES[s.situacao as keyof typeof SITUACOES] ?? s.situacao, n: s.n, chave: s.situacao }))} href={(c) => `/leads?visao=todos&dias=${k.dias}&situacao=${c}`} />
             </div>
           </Card>
           <Card>

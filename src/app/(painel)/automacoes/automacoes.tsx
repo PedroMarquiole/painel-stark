@@ -9,6 +9,8 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { usePainel } from "@/components/painel/contexto";
 import { cn, formatRelative } from "@/lib/utils";
 import type { Automacao, Execucao } from "@/lib/dados/tipos";
+import { useNow } from "@/hooks/use-now";
+import { chamar } from "@/lib/chamar";
 import { alternarAutomacao } from "../acoes";
 
 const GATILHOS: Record<string, string> = {
@@ -24,10 +26,11 @@ export function Automacoes({ regras: iniciais, execucoes }: { regras: Automacao[
   const { perfil } = usePainel();
   const [regras, setRegras] = React.useState(iniciais);
   const admin = perfil.papel === "admin";
+  const agora = useNow();
 
   async function alternar(r: Automacao, ativa: boolean) {
     setRegras((xs) => xs.map((x) => (x.id === r.id ? { ...x, ativa } : x)));
-    const res = await alternarAutomacao(r.id, ativa);
+    const res = await chamar(alternarAutomacao(r.id, ativa));
     if (!res.ok) {
       setRegras((xs) => xs.map((x) => (x.id === r.id ? { ...x, ativa: !ativa } : x)));
       toast.error(res.erro);
@@ -102,7 +105,7 @@ export function Automacoes({ regras: iniciais, execucoes }: { regras: Automacao[
                   <span className="flex-1 truncate">{e.automacao}</span>
                   {e.entidade_tipo === "lead" && e.entidade_id && <a href={`/leads?id=${e.entidade_id}`} className="text-xs text-fg-muted hover:text-fg hover:underline">ver pedido</a>}
                   {e.erro && <span className="max-w-60 truncate text-xs text-danger" title={e.erro}>{e.erro}</span>}
-                  <span className="num w-16 text-right text-xs text-fg-subtle">{formatRelative(new Date(e.created_at))}</span>
+                  <span className="num w-16 text-right text-xs text-fg-subtle">{agora ? formatRelative(new Date(e.created_at), agora) : ""}</span>
                 </li>
               );
             })}

@@ -29,7 +29,11 @@ Deno.serve(async (req) => {
     return json({ erro: "json", mensagem: "Pedido inválido." }, 400, h);
   }
 
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "";
+  // IP para o anti-abuso: cabeçalhos definidos pela infraestrutura primeiro. O 1º item de
+  // X-Forwarded-For pode ser forjado pelo visitante; o último é o adicionado pelo proxy mais próximo.
+  // (Além disso, o banco aplica um teto global, que não depende de IP.)
+  const xff = (req.headers.get("x-forwarded-for") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const ip = req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || xff[xff.length - 1] || "";
   const r = normalizarPedido(body, {
     ipHash: ip ? (await sha256(SALT + ip)).slice(0, 32) : undefined,
     userAgent: req.headers.get("user-agent") ?? undefined,

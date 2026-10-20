@@ -32,7 +32,7 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(async () => {
-  await db.exec(`truncate leads, negocios, contatos, empresas, atividades, mensagens_saida, notificacoes, automacoes_execucoes, ingest_rate_limit cascade`);
+  await db.exec(`truncate leads, negocios, contatos, empresas, atividades, mensagens_saida, notificacoes, automacoes_execucoes, ingest_rate_limit, demo_registros cascade`);
 });
 
 describe("registrar_lead", () => {
@@ -144,6 +144,7 @@ describe("registrar_lead", () => {
   it("opt-out do cliente é honrado", async () => {
     const a = await registrar(base);
     await db.query(`update contatos set opt_out_email = true where id = $1`, [a.contato_id]);
+    await db.query(`update mensagens_saida set created_at = now() - interval '2 hours'`); // fora do limite por destinatário
     const b = await registrar(base);
     const m = await db.query<{ status: string }>(`select status from mensagens_saida where chave_idempotencia = $1`, [`lead_confirmacao_cliente:email:${b.lead_id}`]);
     expect(m.rows[0].status).toBe("bloqueada_opt_out");
@@ -154,6 +155,48 @@ describe("registrar_lead", () => {
     await registrar(base);
     expect((await db.query(`select 1 from mensagens_saida where destino_tipo = 'cliente'`)).rows).toHaveLength(0);
     await db.query(`update automacoes set ativa = true where chave = 'lead_confirmacao_cliente'`);
+  });
+});
+
+describe("correções da revisão: abuso do formulário público", () => {
+  it("confirmação não repete o texto livre do visitante nem URLs no nome", async () => {
+    await registrar({ ...base, nome: "https://phish.example Fulano", dor: "Clique em https://banco-falso.example/login para regularizar." });
+    const m = await db.query<{ corpo: string }>(`select corpo from mensagens_saida where destino_tipo = 'cliente'`);
+    expect(m.rows[0].corpo).not.toMatch(/https?:|banco-falso|phish\.example/);
+  });
+
+  it("no máximo 1 confirmação por e-mail por hora", async () => {
+    await registrar(base);
+    await registrar({ ...base, dor: "Outro pedido do mesmo e-mail, logo em seguida." });
+    const m = await db.query<{ n: number }>(`select count(*)::int n from mensagens_saida where destino_tipo = 'cliente'`);
+    expect(m.rows[0].n).toBe(1);
+    const e = await db.query<{ status: string }>(
+      `select e.status from automacoes_execucoes e join automacoes a on a.id = e.automacao_id where a.chave = 'lead_confirmacao_cliente' order by e.created_at`);
+    expect(e.rows.map((r) => r.status)).toEqual(["sucesso", "ignorada"]);
+  });
+
+  it("teto global barra rajada vinda de IPs diferentes; pedido sem IP também conta", async () => {
+    await db.query(`update app_config set valor = '3' where chave = 'ingest_limite_global_10min'`);
+    for (let i = 0; i < 3; i++) await registrar({ ...base, email: `g${i}@x.com`, whatsapp: `1196666000${i}`, ip_hash: `ip-${i}` });
+    expect(await erro({ ...base, email: "g9@x.com", whatsapp: "11966660009" })).toContain("muitos_pedidos");
+    await db.query(`update app_config set valor = '60' where chave = 'ingest_limite_global_10min'`);
+  });
+
+  it("formulário público não anexa e-mail/WhatsApp novos a um cliente existente", async () => {
+    await db.query(`insert into contatos (nome, email) values ('Cliente Antigo', 'antigo@cliente.com')`);
+    await registrar({ ...base, email: "antigo@cliente.com", whatsapp: "11955554444" });
+    const c = await db.query<{ whatsapp: string | null }>(`select whatsapp from contatos where email = 'antigo@cliente.com'`);
+    expect(c.rows[0].whatsapp).toBeNull();
+  });
+
+  it("responsável desativado: novo pedido do mesmo cliente passa para alguém ativo", async () => {
+    const a = await registrar(base);
+    const dono = (await db.query<{ responsavel_id: string }>(`select responsavel_id from negocios where id = $1`, [a.negocio_id])).rows[0].responsavel_id;
+    await db.query(`update profiles set ativo = false where id = $1`, [dono]);
+    await registrar({ ...base, dor: "Segundo pedido depois que o responsável saiu." });
+    const n = await db.query<{ responsavel_id: string }>(`select responsavel_id from negocios where id = $1`, [a.negocio_id]);
+    expect(n.rows[0].responsavel_id).not.toBe(dono);
+    await db.query(`update profiles set ativo = true where id = $1`, [dono]);
   });
 });
 
@@ -174,6 +217,25 @@ describe("regra 5: verificar_sla", () => {
     expect(tipos.rows.map((x) => x.tipo)).toEqual(["sla_critico", "sla_estourado", "sla_vencendo"]);
   });
 
+  it("lead que já entra vencido na varredura recebe só o alerta de estourado", async () => {
+    const r = await registrar(base);
+    await db.query(`update leads set sla_vence_em = now() - interval '2 hours' where id = $1`, [r.lead_id]);
+    expect((await db.query<{ n: number }>(`select verificar_sla() as n`)).rows[0].n).toBe(1);
+    const t = await db.query<{ tipo: string }>(`select distinct tipo from notificacoes where tipo like 'sla%'`);
+    expect(t.rows.map((x) => x.tipo)).toEqual(["sla_estourado"]);
+    const m = await db.query<{ corpo: string }>(`select corpo from mensagens_saida where template_chave = 'sla.alerta.equipe.email'`);
+    expect(m.rows.every((x) => x.corpo.includes("prazo vencido"))).toBe(true);
+    expect((await db.query<{ n: number }>(`select verificar_sla() as n`)).rows[0].n).toBe(0);
+  });
+
+  it("leads de demonstração não geram alertas", async () => {
+    const r = await registrar(base);
+    await db.query(`insert into demo_registros values ('leads', $1)`, [r.lead_id]);
+    await db.query(`update leads set sla_vence_em = now() - interval '2 hours' where id = $1`, [r.lead_id]);
+    expect((await db.query<{ n: number }>(`select verificar_sla() as n`)).rows[0].n).toBe(0);
+    await db.exec(`truncate demo_registros`);
+  });
+
   it("lead respondido não gera alerta", async () => {
     const r = await registrar(base);
     await db.query(`update leads set sla_vence_em = now() + interval '1 hour' where id = $1`, [r.lead_id]);
@@ -190,6 +252,18 @@ describe("painel: responder e criar manualmente", () => {
     expect(l.rows[0]).toEqual({ primeira_resposta_por: RAFA, status: "em_atendimento" });
     const m = await db.query(`select 1 from mensagens_saida where assunto = 'Oi Marina' and status = 'pendente'`);
     expect(m.rows).toHaveLength(1);
+  });
+
+  it("responder_lead: Projetos/Dev não envia; cliente com opt-out é erro e não fecha o SLA", async () => {
+    const r = await registrar(base);
+    const DEV = "00000000-0000-0000-0000-0000000000d9";
+    await db.query(`insert into auth.users (id, email) values ($1, 'dev9@stark.dev.br') on conflict do nothing`, [DEV]);
+    await db.query(`update profiles set papel = 'projetos' where id = $1`, [DEV]);
+    await expect(asUser(db, DEV, () => db.query(`select responder_lead($1, 'email', 'x', 'y')`, [r.lead_id]))).rejects.toThrow(/sem_permissao/);
+    await db.query(`update contatos set opt_out_email = true where id = $1`, [r.contato_id]);
+    await expect(asUser(db, RAFA, () => db.query(`select responder_lead($1, 'email', 'x', 'y')`, [r.lead_id]))).rejects.toThrow(/opt_out/);
+    const l = await db.query<{ primeira_resposta_em: Date | null }>(`select primeira_resposta_em from leads where id = $1`, [r.lead_id]);
+    expect(l.rows[0].primeira_resposta_em).toBeNull();
   });
 
   it("criar_lead_manual dispensa consentimento e marca origem manual", async () => {
@@ -221,6 +295,36 @@ describe("outbox", () => {
     // confirmação automática NÃO fecha o SLA
     const l = await db.query<{ primeira_resposta_em: Date | null }>(`select primeira_resposta_em from leads where id = $1`, [r.lead_id]);
     expect(l.rows[0].primeira_resposta_em).toBeNull();
+  });
+});
+
+describe("outbox: travadas e falha definitiva", () => {
+  it("mensagem em envio só é retomada 10 min depois da reserva; falha final avisa os admins", async () => {
+    await registrar(base);
+    const lote = await db.query<{ id: string }>(`select id from reservar_mensagens(10)`);
+    expect(lote.rows.length).toBeGreaterThan(0);
+    // agendada_para antiga não basta: o que conta é a hora da reserva
+    await db.query(`update mensagens_saida set agendada_para = now() - interval '1 hour'`);
+    expect((await db.query(`select id from reservar_mensagens(10)`)).rows).toHaveLength(0);
+    await db.query(`update mensagens_saida set reservada_em = now() - interval '11 minutes'`);
+    expect((await db.query(`select id from reservar_mensagens(10)`)).rows.length).toBe(lote.rows.length);
+
+    const id = lote.rows[0].id;
+    await db.query(`update mensagens_saida set tentativas = max_tentativas where id = $1`, [id]);
+    await db.query(`select concluir_mensagem($1, false, null, null, 'resend 422: domínio inválido')`, [id]);
+    const n = await db.query<{ n: number }>(`select count(*)::int n from notificacoes where tipo = 'envio_falhou'`);
+    expect(n.rows[0].n).toBeGreaterThan(0);
+    const e = await db.query<{ status: string }>(`select e.status from automacoes_execucoes e join mensagens_saida m on m.execucao_id = e.id where m.id = $1`, [id]);
+    expect(e.rows[0].status).toBe("erro");
+  });
+
+  it("notificações não vão para quem está desativado", async () => {
+    const n = await db.query<{ n: number }>(`select notificar(array[$1, $2]::uuid[], 'teste', 't', null, null) n`, [ANA, RAFA]);
+    expect(n.rows[0].n).toBe(2);
+    await db.query(`update profiles set ativo = false where id = $1`, [RAFA]);
+    const m = await db.query<{ n: number }>(`select notificar(array[$1, $2]::uuid[], 'teste', 't', null, null) n`, [ANA, RAFA]);
+    expect(m.rows[0].n).toBe(1);
+    await db.query(`update profiles set ativo = true where id = $1`, [RAFA]);
   });
 });
 

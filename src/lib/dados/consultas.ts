@@ -46,16 +46,17 @@ const paraInbox = (l: LinhaLead): LeadInbox => ({
   empresa: l.contato?.empresa?.nome ?? l.empresa_informada, score: l.score,
 });
 
-/** Caixa de entrada: tudo em aberto + o que chegou nos últimos 14 dias. */
-export async function listarLeadsInbox(): Promise<LeadInbox[]> {
+/** Caixa de entrada: tudo em aberto + o que chegou nos últimos N dias (padrão 14; até 90 vindo da home). */
+export async function listarLeadsInbox(dias = 14): Promise<LeadInbox[]> {
   if (OFFLINE) return fx.leads();
+  const janela = Math.min(Math.max(dias, 14), 90);
   const sb = await supabaseServidor();
   const { data, error } = await sb
     .from("leads")
     .select(SELECT_LEAD)
-    .or(`status.in.(novo,em_atendimento),created_at.gte.${diasAtras(14)}`)
+    .or(`status.in.(novo,em_atendimento),created_at.gte.${diasAtras(janela)}`)
     .order("created_at", { ascending: false })
-    .limit(300);
+    .limit(janela > 14 ? 1000 : 300);
   if (error) throw new Error(error.message);
   return (data as unknown as LinhaLead[]).map(paraInbox);
 }
@@ -117,14 +118,14 @@ export async function listarEtapas(): Promise<EtapaConfig[]> {
   return data ?? [];
 }
 
-/** Funil: negócios em aberto + fechados nos últimos 90 dias. */
+/** Funil: negócios em aberto + fechados nos últimos 120 dias (cobre o trimestre inteiro). */
 export async function listarNegocios(): Promise<NegocioCard[]> {
   if (OFFLINE) return fx.negocios();
   const sb = await supabaseServidor();
-  const d90 = diasAtras(90);
+  const d90 = diasAtras(120);
   const { data, error } = await sb
     .from("negocios")
-    .select("id, titulo, etapa, etapa_desde, ordem, valor_estimado, probabilidade, servicos, responsavel_id, contato_id, ganho_em, perdido_em, motivo_perda, created_at, contato:contatos(nome, empresa:empresas(nome)), leads(protocolo)")
+    .select("id, titulo, etapa, etapa_desde, ordem, valor_estimado, probabilidade, servicos, responsavel_id, contato_id, ganho_em, perdido_em, motivo_perda, previsao_fechamento, created_at, contato:contatos(nome, empresa:empresas(nome)), leads(protocolo)")
     .or(`etapa.not.in.(ganho,perdido),ganho_em.gte.${d90},perdido_em.gte.${d90}`)
     .order("ordem")
     .order("etapa_desde", { ascending: false });
@@ -190,7 +191,7 @@ export async function fichaContato(id: string): Promise<Ficha | null> {
   if (!c) return null;
   const [pedidos, negocios, atividades] = await Promise.all([
     sb.from("leads").select(SELECT_LEAD).eq("contato_id", id).order("created_at", { ascending: false }),
-    sb.from("negocios").select("id, titulo, etapa, etapa_desde, ordem, valor_estimado, probabilidade, servicos, responsavel_id, contato_id, ganho_em, perdido_em, motivo_perda, created_at")
+    sb.from("negocios").select("id, titulo, etapa, etapa_desde, ordem, valor_estimado, probabilidade, servicos, responsavel_id, contato_id, ganho_em, perdido_em, motivo_perda, previsao_fechamento, created_at")
       .eq("contato_id", id).order("created_at", { ascending: false }),
     atividadesDoContato(id),
   ]);
@@ -227,11 +228,11 @@ export async function buscar(qBruto: string): Promise<ResultadoBusca[]> {
   ];
 }
 
-export interface FiltroSalvo { id: string; nome: string; filtros: Record<string, string>; compartilhado: boolean }
+export interface FiltroSalvo { id: string; nome: string; filtros: Record<string, string>; compartilhado: boolean; profile_id: string }
 
 export async function listarFiltros(escopo: string): Promise<FiltroSalvo[]> {
-  if (OFFLINE) return [{ id: "f1", nome: "Automação · Google", filtros: { servico: "automacao_ia", origem: "google" }, compartilhado: true }];
+  if (OFFLINE) return [{ id: "f1", nome: "Automação · Google", filtros: { servico: "automacao_ia", origem: "google" }, compartilhado: true, profile_id: fx.perfil.id }];
   const sb = await supabaseServidor();
-  const { data } = await sb.from("filtros_salvos").select("id, nome, filtros, compartilhado").eq("escopo", escopo).order("ordem").order("created_at");
+  const { data } = await sb.from("filtros_salvos").select("id, nome, filtros, compartilhado, profile_id").eq("escopo", escopo).order("ordem").order("created_at");
   return (data ?? []) as FiltroSalvo[];
 }

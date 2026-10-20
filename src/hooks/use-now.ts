@@ -25,3 +25,13 @@ export function useNow(): Date | null {
   }, []);
   return now;
 }
+
+/** Relógio de baixa frequência (a cada 30s) para listas: contadores de SLA mudam sem recarregar. */
+export function useRelogio(intervaloMs = 30_000): number {
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setAgora(Date.now()), intervaloMs);
+    return () => clearInterval(t);
+  }, [intervaloMs]);
+  return agora;
+}

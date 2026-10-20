@@ -4,7 +4,9 @@ import { CaixaEntrada } from "./caixa-entrada";
 
 export const metadata: Metadata = { title: "Caixa de entrada" };
 
-export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ id?: string; visao?: string }> }) {
-  const [{ id, visao }, leads, filtros] = await Promise.all([searchParams, listarLeadsInbox(), listarFiltros("inbox")]);
-  return <CaixaEntrada iniciais={leads} idInicial={id ?? null} visaoInicial={visao} filtrosIniciais={filtros} />;
+export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ dias?: string }> }) {
+  const { dias } = await searchParams;
+  const n = Number(dias);
+  const [leads, filtros] = await Promise.all([listarLeadsInbox([7, 30, 90].includes(n) ? n : 14), listarFiltros("inbox")]);
+  return <CaixaEntrada iniciais={leads} filtrosIniciais={filtros} />;
 }

@@ -81,8 +81,13 @@ describe("erroDoBanco", () => {
 });
 
 describe("emailHtml", () => {
-  it("escapa HTML e transforma links", () => {
-    const h = emailHtml("Oi <b>Marina</b>\n\nVeja https://painel.stark/leads?id=1");
+  it("ao cliente: escapa HTML e não cria links", () => {
+    const h = emailHtml("Oi <b>Marina</b>\n\nVeja https://phish.example");
+    expect(h).toContain("Oi &lt;b&gt;Marina&lt;/b&gt;");
+    expect(h).not.toContain("<a ");
+  });
+  it("à equipe: transforma links do painel", () => {
+    const h = emailHtml("Oi <b>Marina</b>\n\nVeja https://painel.stark/leads?id=1", { equipe: true });
     expect(h).toContain("Oi &lt;b&gt;Marina&lt;/b&gt;");
     expect(h).toContain('<a href="https://painel.stark/leads?id=1"');
   });
