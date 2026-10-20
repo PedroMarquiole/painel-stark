@@ -11,6 +11,10 @@ Aplicado em 20/10/2026 pelo conector do Supabase, na ordem:
 | `painel_0006a/b/c_*` | `…0006_ingestao.sql` | Aplicada em 3 partes. A limpeza diária de `ingest_rate_limit` ainda **não** está agendada (ver abaixo) |
 | `painel_0007_ajustes_seguranca` | `…0007_ajustes_seguranca.sql` | |
 | `painel_0008a_demo_registros` | `…0008_demonstracao.sql` (só a tabela) | A função `limpar_demonstracao()` **não** foi aplicada |
+| `painel_0009_indicadores` | `…0009_indicadores.sql` | KPIs da home |
+
+Dados: 31 leads de demonstração (30 do seed + o teste de ponta a ponta #0031), todos em `demo_registros`.
+Conta de teste `teste-claude@stark.local`: **desativada e bloqueada**; apagar com o SQL do checklist.
 
 Configurado fora de migration: segredos do Vault `cron_secret` (gerado no banco) e `outbox_url`.
 Edge Functions publicadas: `novo-pedido` (v3) e `outbox-sender` (v1), ambas com `verify_jwt = false`.

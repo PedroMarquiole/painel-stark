@@ -1904,6 +1904,7 @@ export type Database = {
         }
         Returns: number
       }
+      painel_indicadores: { Args: { p_dias?: number }; Returns: Json }
       papel_atual: {
         Args: never
         Returns: Database["public"]["Enums"]["papel_equipe"]
