@@ -5,6 +5,7 @@
   "display": "standalone",
   "background_color": "#0c0a07",
   "theme_color": "#0c0a07",
+  "description": "Painel interno da Stark",
   "lang": "pt-BR",
   "icons": []
 }

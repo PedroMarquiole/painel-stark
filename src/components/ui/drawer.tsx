@@ -36,7 +36,7 @@ export function Drawer({
         >
           <header className="flex items-start gap-3 border-b border-border px-5 py-4">
             <div className="min-w-0 flex-1">
-              <D.Title className="truncate text-md font-semibold">{title}</D.Title>
+              <D.Title className="truncate font-[family-name:var(--font-display)] text-md font-semibold">{title}</D.Title>
               {subtitle && <D.Description className="mt-0.5 text-xs text-fg-muted">{subtitle}</D.Description>}
             </div>
             {actions}

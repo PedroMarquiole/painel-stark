@@ -86,9 +86,9 @@ export function DesignSystem() {
     <div className="min-h-dvh">
       <header className="sticky top-0 z-30 border-b border-border bg-canvas/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-4 px-4 sm:px-6">
-          <span className="grid size-7 place-items-center rounded-md bg-accent-fill text-sm font-bold text-accent-fg">S</span>
+          <img src="/logo-simbolo.svg" alt="" className="size-7" />
           <div className="min-w-0">
-            <p className="whitespace-nowrap text-sm font-semibold">Painel Stark</p>
+            <p className="whitespace-nowrap font-[family-name:var(--font-display)] text-sm font-semibold">Painel Stark</p>
             <p className="hidden text-xs text-fg-muted sm:block">Design system · v0.1</p>
           </div>
           <span className="flex-1" />
@@ -159,20 +159,20 @@ export function DesignSystem() {
             </div>
           </Section>
 
-          <Section id="tipografia" title="Tipografia" desc="Geist para a interface, Geist Mono com tabular-nums para números, protocolos e valores. No máximo 4 tamanhos.">
+          <Section id="tipografia" title="Tipografia" desc="Como no site: Space Grotesk nos títulos, Inter no texto. Geist Mono com tabular-nums para números, protocolos e valores. No máximo 4 tamanhos.">
             <div className="flex flex-col divide-y divide-border rounded-lg border border-border bg-raised">
               {[
-                ["text-xl · 28/34", "text-xl font-semibold", "Leads esta semana"],
-                ["text-md · 15/22", "text-md font-semibold", "Caixa de entrada"],
-                ["text-sm · 13/20", "text-sm", "Agendamento é feito em 3 lugares diferentes e a recepção perde 2h por dia."],
-                ["text-xs · 12/16", "text-xs text-fg-muted", "Chegou há 4 min · google / cpc"],
+                ["display · text-xl · 28/34", "font-[family-name:var(--font-display)] text-xl font-semibold", "Leads esta semana"],
+                ["display · text-md · 15/22", "font-[family-name:var(--font-display)] text-md font-semibold", "Caixa de entrada"],
+                ["inter · text-sm · 13/20", "text-sm", "Agendamento é feito em 3 lugares diferentes e a recepção perde 2h por dia."],
+                ["inter · text-xs · 12/16", "text-xs text-fg-muted", "Chegou há 4 min · google / cpc"],
               ].map(([spec, cls, sample]) => (
-                <div key={spec} className="grid grid-cols-1 items-baseline gap-1 p-card sm:grid-cols-[140px_1fr] sm:gap-4">
+                <div key={spec} className="grid grid-cols-1 items-baseline gap-1 p-card sm:grid-cols-[180px_1fr] sm:gap-4">
                   <span className="num text-xs text-fg-subtle">{spec}</span>
                   <span className={cls}>{sample}</span>
                 </div>
               ))}
-              <div className="grid grid-cols-1 items-baseline gap-1 p-card sm:grid-cols-[140px_1fr] sm:gap-4">
+              <div className="grid grid-cols-1 items-baseline gap-1 p-card sm:grid-cols-[180px_1fr] sm:gap-4">
                 <span className="num text-xs text-fg-subtle">mono · tnum</span>
                 <span className="num text-md">#0142 · R$ 48.000 · 23h 59min · 1.234.567</span>
               </div>

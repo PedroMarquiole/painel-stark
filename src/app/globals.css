@@ -27,12 +27,12 @@
   --c-fg-muted: #a39a8d;
   --c-fg-subtle: #756c60; /* ≥3:1 — só placeholder/metadado; nunca texto essencial */
 
-  /* Acento único da marca Stark (#D9440F).
-     fill = fundo de botão primário · accent = texto, link e foco (tom mais claro p/ AA no escuro) */
-  --c-brand: #d9440f;
-  --c-accent: #f07445;
-  --c-accent-fill: #dc4712;
-  --c-accent-fill-hover: #e85a24;
+  /* Acento único da marca Stark — o mesmo do site (#FF5A1F; variante escura #D9440F no tema claro).
+     fill = fundo de botão primário · accent = texto, link e foco */
+  --c-brand: #ff5a1f;
+  --c-accent: #ff5a1f;      /* ≥ 5.3:1 nas 3 superfícies */
+  --c-accent-fill: #ff5a1f; /* texto escuro sobre ele: 6.3:1 */
+  --c-accent-fill-hover: #ff7036;
   --c-accent-fg: #0c0a07;
   --c-accent-soft: color-mix(in oklab, var(--c-brand) 16%, transparent);
 
@@ -71,9 +71,9 @@
   --c-fg-subtle: #8f8578;
 
   --c-brand: #d9440f;
-  --c-accent: #b0360b;
-  --c-accent-fill: #c23d0d;
-  --c-accent-fill-hover: #a9340a;
+  --c-accent: #b0360b;      /* texto/link: ≥ 4.6:1 */
+  --c-accent-fill: #d4420e; /* #D9440F ajustado 2% p/ texto branco AA (4.58:1) */
+  --c-accent-fill-hover: #b83a0c;
   --c-accent-fg: #ffffff;
   --c-accent-soft: color-mix(in oklab, var(--c-brand) 12%, transparent);
 
@@ -133,7 +133,8 @@
   --color-series-5: var(--c-series-5);
   --color-series-6: var(--c-series-6);
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk Variable", "Inter Variable", ui-sans-serif, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
   --shadow-pop: var(--shadow-pop);
@@ -194,9 +195,11 @@
     font-size: 13px;
     line-height: 20px;
     -webkit-font-smoothing: antialiased;
-    font-feature-settings: "cv11", "ss01";
+    font-feature-settings: "cv11";
   }
   ::selection { background: var(--c-accent-soft); }
+  /* Space Grotesk só em títulos (como no site); corpo e tabelas em Inter */
+  h1, h2 { font-family: var(--font-display); letter-spacing: -0.01em; }
   :focus-visible {
     outline: 2px solid var(--c-accent);
     outline-offset: 2px;

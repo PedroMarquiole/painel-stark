@@ -1,7 +1,7 @@
 # Painel Stark — Plano (Fase 0)
 
 > **O sistema trabalha. A equipe decide.**
-> Status: **aguardando aprovação** do esqueleto antes da Fase 1.
+> Status: **aguardando aprovação** do esqueleto antes da Fase 1. Decisões fechadas em 20/10/2026 (seção 6).
 
 ## 1. Estrutura de pastas
 
@@ -110,7 +110,7 @@ O site mostra o **protocolo** na tela de confirmação, e o protocolo tem que vi
 
 - **Tokens** em `src/app/globals.css`: 4 superfícies quentes (`#0C0A07 → #221E19`), texto off-white `#EDE8E0`, acento único da marca `#D9440F`, semânticas dessaturadas e tema claro creme. Densidade **confortável/compacta** via `--row-h` e `--pad-card`.
 - **Contraste AA verificado**: texto, texto secundário, acento e semânticas ≥ 4,5:1 nas 3 superfícies dos 2 temas. O "texto sutil" (≥ 3:1) fica só para metadado.
-- **Tipografia**: Geist + Geist Mono `tabular-nums`. A escala do Tailwind foi **reduzida a 4 tamanhos** (12/13/15/28), e qualquer outro tamanho não compila.
+- **Tipografia**: Inter (texto) + Space Grotesk (títulos), como no site; Geist Mono `tabular-nums` nos números. A escala do Tailwind foi **reduzida a 4 tamanhos** (12/13/15/28), e qualquer outro tamanho não compila.
 - **Gráficos**: 6 cores em ordem fixa, **validadas para daltonismo** nos dois temas (ΔE adjacente ≥ 13), com tooltip único e clique levando à lista.
 - **Componentes**: botão, input/textarea, badge, **SLA ao vivo**, card de KPI com sparkline, linha da inbox com hover preview, card de Kanban (estado "parado" e "arrastando"), drawer, toast com Desfazer, edição inline otimista, vazio/skeleton/erro, kbd.
 - `prefers-reduced-motion` respeitado; animações de 150 a 250 ms com ease-out.
@@ -121,25 +121,29 @@ O site mostra o **protocolo** na tela de confirmação, e o protocolo tem que vi
 |---|---|
 | SLA "1 dia útil" | 24h de relógio só em dias úteis: sex 15h → seg 15h; sábado → fim de segunda |
 | Feriados | Só os nacionais pausam o SLA. **Carnaval e Corpus Christi são dias úteis** |
-| Cor da marca | **`#D9440F`**. Botão `#DC4712` (escuro) / `#C23D0D` (claro); texto e foco em tons AA; gráficos revalidados |
+| Cor da marca | **Igual ao site**: `#FF5A1F` no tema escuro (botão, texto e foco — 5,3–6,3:1) e `#D9440F` no claro (botão `#D4420E` para texto branco AA). Logo do site. Gráficos revalidados |
+| Fontes | **Inter** no texto e **Space Grotesk** nos títulos (como no site); Geist Mono nos números |
 | Login | **E-mail e senha (Supabase Auth)**. Contas criadas pelo admin no Supabase; cadastro público desligado. 1ª conta = admin, demais = comercial |
 | Banco | **Evoluir o projeto `stark-dashboard`** (sa-east-1). Plano gratuito já tem 2 projetos ativos |
 | Painel antigo | Dados de teste, **descartados**. Migration `0000` remove o legado; a conta de login existente vira admin |
-| Ingestão | Manter o endereço **`novo-pedido`** (o site já chama) com contrato compatível: `{ ok, numero }` |
+| Ingestão | Manter o endereço **`novo-pedido`** e tratar o contrato dele como verdade; aceitar também o formato do briefing |
+| Segurança extra | 2FA e anonimização LGPD **ficam para depois**; consentimento LGPD já entrou |
+| Aplicar no Supabase | Junto com a nova `novo-pedido`, num passo só, no início da Fase 1 |
 | WhatsApp | Ainda não contratado. Interface pronta, provedor `none`; Fase 1 só com e-mail |
 | Agenda | Decidir na Fase 2 |
 | Deploy | Vercel |
 
-### O que o painel antigo revelou sobre o formulário
+### Onde está o formulário
 
-A função `novo-pedido` recebe: `nome, email, whatsapp, empresa, servico` (**um só**), `descricao, prazo, investimento, origem, utm_*, consentimento` (bool, obrigatório) e `website` (campo-isca). O painel antigo também tinha `decisor, motivo_prazo, ferramentas_atuais, qtd_usuarios`. O briefing fala em serviços **múltiplos** + `situacao_atual` + `dor`. A nova ingestão aceita os dois formatos; o repositório do site define qual é o atual.
+- `BrayanDener/starksite` (main e `claude/trusting-maxwell-q79ehq`): landing page **sem formulário** (CTA é `mailto:` placeholder). De lá vieram cor, fontes e logo.
+- `PedroMarquiole/stark-ai-site`: site antigo "STARK AI", formulário que só abre WhatsApp.
+- O endereço do Netlify não resolve deste ambiente.
+- **Fonte de verdade adotada**: a função `novo-pedido` do `stark-dashboard`, que recebe `nome, email, whatsapp, empresa, servico` (um só), `descricao, prazo, investimento, origem, utm_*, consentimento` (bool, obrigatório) e `website` (campo-isca), e devolve `{ ok, numero }`. A nova versão aceita também `servicos[]`, `situacao_atual` e `dor` do briefing.
 
 ### Pendências
 
-- Repositório do site (`owner/repo`) para fechar os campos e o formato de `servico`
-- Repositório vazio para o painel (`owner/repo`)
-- Quais recursos de segurança trazer: anonimização LGPD e 2FA (o consentimento LGPD já entrou)
-- Autorização para aplicar as migrations no `stark-dashboard` (apaga o painel antigo)
+- Repositório `PedroMarquiole/painel-stark` (privado, vazio) com acesso liberado ao Claude
+- Aprovação da Fase 0 para iniciar a Fase 1
 
 ## 7. Como rodar
 

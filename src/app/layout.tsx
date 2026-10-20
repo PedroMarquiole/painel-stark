@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
+import "@fontsource-variable/inter";
+import "@fontsource-variable/space-grotesk";
 import { Providers } from "@/components/layout/providers";
 import "./globals.css";
 
@@ -20,7 +21,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html lang="pt-BR" suppressHydrationWarning className={GeistMono.variable}>
       <body>
         <Providers>{children}</Providers>
       </body>
