@@ -1,0 +1,218 @@
+@import "tailwindcss";
+
+/*
+ * Painel Stark — design tokens
+ * Uma única fonte de verdade. Componentes usam papéis (bg-surface, text-fg-muted…),
+ * nunca hex. Dark é o padrão (sem atributo); light via .light ou sistema.
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ───────────────────────── Tema escuro (padrão) ───────────────────────── */
+:root,
+.dark {
+  color-scheme: dark;
+
+  /* Superfícies: 4 camadas próximas sobre base quente. Nunca preto puro. */
+  --c-canvas: #0c0a07; /* fundo mais profundo (área de trabalho) */
+  --c-surface: #13110d; /* sidebar, colunas do kanban */
+  --c-raised: #1a1713; /* cards, drawer, tabelas */
+  --c-overlay: #221e19; /* hover, popovers, menus */
+
+  --c-border: #2a251f;
+  --c-border-strong: #3a332b;
+
+  /* Texto off-white, nunca branco puro. fg/muted/acento/semânticas ≥ 4.5:1 (AA) nas 3 superfícies, nos 2 temas. */
+  --c-fg: #ede8e0;
+  --c-fg-muted: #a39a8d;
+  --c-fg-subtle: #756c60; /* ≥3:1 — só placeholder/metadado; nunca texto essencial */
+
+  /* Acento único da marca — ações e foco  [CONFIRMAR hex oficial da marca] */
+  --c-accent: #e8804f;
+  --c-accent-hover: #f08c5c;
+  --c-accent-fg: #1a0d06;
+  --c-accent-soft: color-mix(in oklab, var(--c-accent) 14%, transparent);
+
+  /* Semânticas dessaturadas: só onde significam algo (SLA, status, alertas) */
+  --c-success: #7fae8a;
+  --c-warning: #d4ae5c;
+  --c-danger: #d9776b;
+  --c-info: #8aa4c2;
+
+  /* Gráficos — ordem fixa validada (CVD ΔE ≥ 13 adjacente). Nunca ciclar. */
+  --c-series-1: #d86e40; /* brasa  */
+  --c-series-2: #5b8fd3; /* azul   */
+  --c-series-3: #3e9c79; /* verde  */
+  --c-series-4: #8f78e0; /* violeta*/
+  --c-series-5: #b98a22; /* ocre   */
+  --c-series-6: #cf6a9e; /* magenta*/
+  --c-grid: #2a251f;
+
+  --shadow-pop: 0 8px 24px -12px rgb(0 0 0 / 0.6), 0 0 0 1px var(--c-border);
+}
+
+/* ───────────────────────── Tema claro (creme, nunca branco estourado) ─── */
+.light {
+  color-scheme: light;
+
+  --c-canvas: #f3eee5;
+  --c-surface: #f8f4ed;
+  --c-raised: #fdfaf5;
+  --c-overlay: #ede6da;
+
+  --c-border: #e2d9ca;
+  --c-border-strong: #d0c4b1;
+
+  --c-fg: #1f1a14;
+  --c-fg-muted: #635a4e;
+  --c-fg-subtle: #8f8578;
+
+  --c-accent: #a3461a;
+  --c-accent-hover: #8f3c14;
+  --c-accent-fg: #fff8f2;
+
+  --c-success: #356b42;
+  --c-warning: #7a5a0f;
+  --c-danger: #a13d31;
+  --c-info: #3d5f88;
+
+  --c-series-1: #c85a2a;
+  --c-series-2: #2f6fbf;
+  --c-series-3: #1e8a63;
+  --c-series-4: #6b55cf;
+  --c-series-5: #a87708;
+  --c-series-6: #c24e86;
+  --c-grid: #e8e0d3;
+
+  --shadow-pop: 0 8px 24px -12px rgb(60 40 20 / 0.18), 0 0 0 1px var(--c-border);
+}
+
+/* ───────────────────────── Densidade (por usuário) ───────────────────────── */
+:root {
+  --row-h: 40px;
+  --pad-card: 16px;
+  --gap: 12px;
+}
+[data-density="compact"] {
+  --row-h: 32px;
+  --pad-card: 12px;
+  --gap: 8px;
+}
+
+/* ───────────────────────── Tailwind theme ───────────────────────── */
+@theme inline {
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-raised: var(--c-raised);
+  --color-overlay: var(--c-overlay);
+  --color-border: var(--c-border);
+  --color-border-strong: var(--c-border-strong);
+  --color-fg: var(--c-fg);
+  --color-fg-muted: var(--c-fg-muted);
+  --color-fg-subtle: var(--c-fg-subtle);
+  --color-accent: var(--c-accent);
+  --color-accent-hover: var(--c-accent-hover);
+  --color-accent-fg: var(--c-accent-fg);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-success: var(--c-success);
+  --color-warning: var(--c-warning);
+  --color-danger: var(--c-danger);
+  --color-info: var(--c-info);
+  --color-series-1: var(--c-series-1);
+  --color-series-2: var(--c-series-2);
+  --color-series-3: var(--c-series-3);
+  --color-series-4: var(--c-series-4);
+  --color-series-5: var(--c-series-5);
+  --color-series-6: var(--c-series-6);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --shadow-pop: var(--shadow-pop);
+
+  --spacing-row: var(--row-h);
+  --spacing-card: var(--pad-card);
+  --spacing-gap: var(--gap);
+}
+
+@theme {
+  /* No máximo 4 tamanhos de texto. Qualquer outro é erro de design. */
+  --text-*: initial;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 20px;
+  --text-md: 15px;
+  --text-md--line-height: 22px;
+  --text-xl: 28px;
+  --text-xl--line-height: 34px;
+  --text-xl--letter-spacing: -0.02em;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-enter: enter 200ms var(--ease-out);
+  --animate-highlight: highlight 2.4s var(--ease-out);
+
+  @keyframes enter {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes drawer-in {
+    from { transform: translateX(16px); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+  }
+  @keyframes highlight {
+    from { background-color: var(--c-accent-soft); }
+    to   { background-color: transparent; }
+  }
+}
+
+/* ───────────────────────── Base ───────────────────────── */
+@layer base {
+  * { border-color: var(--c-border); }
+  html { background: var(--c-canvas); }
+  body {
+    background: var(--c-canvas);
+    color: var(--c-fg);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection { background: var(--c-accent-soft); }
+  :focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--c-border);
+    border-radius: 999px;
+    border: 3px solid var(--c-canvas);
+  }
+}
+
+/* Números nunca "dançam" */
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

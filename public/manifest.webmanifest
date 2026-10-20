@@ -1,0 +1,10 @@
+{
+  "name": "Painel Stark",
+  "short_name": "Stark",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0a07",
+  "theme_color": "#0c0a07",
+  "lang": "pt-BR",
+  "icons": []
+}
