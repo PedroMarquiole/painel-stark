@@ -949,6 +949,7 @@ export type Database = {
           profile_id: string | null
           provider: string | null
           provider_message_id: string | null
+          reservada_em: string | null
           status: string
           template_chave: string | null
           tentativas: number
@@ -971,6 +972,7 @@ export type Database = {
           profile_id?: string | null
           provider?: string | null
           provider_message_id?: string | null
+          reservada_em?: string | null
           status?: string
           template_chave?: string | null
           tentativas?: number
@@ -993,6 +995,7 @@ export type Database = {
           profile_id?: string | null
           provider?: string | null
           provider_message_id?: string | null
+          reservada_em?: string | null
           status?: string
           template_chave?: string | null
           tentativas?: number
@@ -1933,6 +1936,7 @@ export type Database = {
           profile_id: string | null
           provider: string | null
           provider_message_id: string | null
+          reservada_em: string | null
           status: string
           template_chave: string | null
           tentativas: number

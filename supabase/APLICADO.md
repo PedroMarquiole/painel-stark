@@ -12,12 +12,15 @@ Aplicado em 20/10/2026 pelo conector do Supabase, na ordem:
 | `painel_0007_ajustes_seguranca` | `…0007_ajustes_seguranca.sql` | |
 | `painel_0008a_demo_registros` | `…0008_demonstracao.sql` (só a tabela) | A função `limpar_demonstracao()` **não** foi aplicada |
 | `painel_0009_indicadores` | `…0009_indicadores.sql` | KPIs da home |
+| `painel_0010a` … `painel_0010f` | `…0010_correcoes_revisao.sql` | Correções da revisão adversarial, aplicadas em 6 partes (sem nada removido) |
+
+Conferido depois da 0010: funções novas no lugar, `registrar_lead` só para `service_role`, fila de envio vazia; a `novo-pedido` publicada recusa serviço inválido (400) e nome vazio (400, vindo do banco), e a `outbox-sender` recusa chamada sem segredo (401).
 
 Dados: 31 leads de demonstração (30 do seed + o teste de ponta a ponta #0031), todos em `demo_registros`.
 Conta de teste `teste-claude@stark.local`: **desativada e bloqueada**; apagar com o SQL do checklist.
 
 Configurado fora de migration: segredos do Vault `cron_secret` (gerado no banco) e `outbox_url`.
-Edge Functions publicadas: `novo-pedido` (v3) e `outbox-sender` (v1), ambas com `verify_jwt = false`.
+Edge Functions publicadas: `novo-pedido` (v4) e `outbox-sender` (v2), ambas com `verify_jwt = false`.
 
 ## Pendente: aplicar no SQL Editor quando quiser
 
@@ -32,6 +35,8 @@ Estes dois trechos ficam para o admin rodar em Dashboard → SQL Editor:
    ```
 
 ## Avisos do Security Advisor que ficaram
+
+- *Signed-in users can execute SECURITY DEFINER*: `criar_lead_manual`, `responder_lead`, `is_equipe`, `papel_atual`, `tem_papel`. Intencional: são chamadas pelo painel e conferem o papel por dentro.
 
 - `pg_net` no schema `public`: mover exige remover e reinstalar a extensão (Database → Extensions).
 - *Leaked password protection*: ligar em Authentication → Settings → Password security.

@@ -23,7 +23,7 @@ export const ERROS: Record<string, [number, string, string?]> = {
 };
 
 const sem = (s: string) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 // Rótulos do site (atual e do briefing) → enum do banco
 const SERVICOS: [RegExp, string][] = [

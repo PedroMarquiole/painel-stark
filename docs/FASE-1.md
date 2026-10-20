@@ -17,7 +17,9 @@ Branch `fase-1`. Banco aplicado no projeto Supabase `stark-dashboard`. Falta só
 
 **Testado de ponta a ponta no Supabase real:** pedido pela `novo-pedido` → protocolo `#0031` devolvido ao site → responsável por rodízio → e-mail de confirmação ao cliente e aviso à equipe enviados pelo Resend (chegou na caixa de entrada) → notificação no painel.
 
-**Testes automatizados:** 114 (SLA e feriados, paridade SQL↔TS, ingestão, deduplicação, idempotência, rate limit, opt-out, alertas de SLA, outbox, RLS por papel, migração do legado, indicadores). Mais um teste de navegador do arrastar e soltar.
+**Testes automatizados:** 136 (SLA e feriados, paridade SQL↔TS, ingestão, deduplicação, idempotência, rate limit por IP e global, opt-out, alertas de SLA por estágio, outbox com falha definitiva, RLS por papel, redirecionamento seguro, migração do legado, indicadores no fuso de São Paulo). Mais testes de navegador (arrastar e soltar com mouse, teclado e toque).
+
+**Revisão adversarial:** 58 achados levantados por revisores independentes; 51 confirmados e corrigidos (migration `0010` e commit de correções), 7 refutados. Os principais: redirecionamento aberto no login, e-mail de confirmação usado como relay, anti-spam contornável por cabeçalho, Desfazer do funil incompleto, arrastar no celular, alertas de SLA dos dados de demonstração, ações bloqueadas pela RLS aparecendo como sucesso.
 
 ## Deploy na Vercel (você)
 
@@ -79,6 +81,12 @@ select cron.schedule('stark-limpar-rate-limit', '17 3 * * *',
 - [ ] Automações: só admin liga/desliga 1–5; últimas execuções aparecem
 - [ ] Celular: caixa de entrada em cartões, responder pela ficha, funil (mudar etapa pela ficha do negócio), KPIs
 - [ ] Tema claro/escuro e densidade compacta em todas as telas
+- [ ] Visão "Vencendo" mostra só quem tem menos de 4h; link de e-mail `/leads?id=…` abre a ficha certa
+- [ ] Funil: mover para Ganho e "Desfazer" → card volta com a mesma probabilidade e datas
+- [ ] Celular: segurar e arrastar um card do funil funciona (toque)
+- [ ] Marcar opt-out de e-mail num cliente → botão de responder por e-mail fica desabilitado
+- [ ] "Registrar contato" com horário no passado → SLA fecha pelo horário informado
+- [ ] Conta com papel Projetos: vê leads e funil, mas não responde, não descarta e não move cards
 
 ## Limitações conhecidas
 
