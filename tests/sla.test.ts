@@ -15,13 +15,17 @@ describe("easter", () => {
 });
 
 describe("holidays", () => {
-  it("inclui fixos, Sexta Santa, Consciência Negra e facultativos", () => {
+  it("inclui fixos, Sexta Santa e Consciência Negra", () => {
     const h = holidays(2026);
-    for (const d of ["2026-01-01", "2026-04-03", "2026-04-21", "2026-11-20", "2026-12-25", "2026-02-16", "2026-02-17", "2026-06-04"])
+    for (const d of ["2026-01-01", "2026-04-03", "2026-04-21", "2026-11-20", "2026-12-25"])
       expect(h.has(d), d).toBe(true);
   });
-  it("facultativos podem ser desligados", () => {
-    expect(holidays(2026, { incluirFacultativos: false }).has("2026-02-16")).toBe(false);
+  it("Carnaval e Corpus Christi são dias úteis por padrão", () => {
+    const h = holidays(2026);
+    for (const d of ["2026-02-16", "2026-02-17", "2026-06-04"]) expect(h.has(d), d).toBe(false);
+  });
+  it("facultativos podem ser ligados", () => {
+    expect(holidays(2026, { incluirFacultativos: true }).has("2026-02-16")).toBe(true);
   });
 });
 
@@ -34,8 +38,10 @@ describe("slaDeadline (1 dia útil)", () => {
     expect(iso(slaDeadline(br("2026-11-13T09:00")))).toBe("2026-11-16T09:00"));
   it("quinta 19/11 → sexta 20/11 é feriado → segunda 23/11", () =>
     expect(iso(slaDeadline(br("2026-11-19T14:00")))).toBe("2026-11-23T14:00"));
-  it("antes do Carnaval: sexta 13/02 → quarta 18/02", () =>
-    expect(iso(slaDeadline(br("2026-02-13T11:00")))).toBe("2026-02-18T11:00"));
+  it("Carnaval é dia útil: sexta 13/02 → segunda 16/02", () =>
+    expect(iso(slaDeadline(br("2026-02-13T11:00")))).toBe("2026-02-16T11:00"));
+  it("Corpus Christi é dia útil: quarta 03/06 → quinta 04/06", () =>
+    expect(iso(slaDeadline(br("2026-06-03T10:00")))).toBe("2026-06-04T10:00"));
   it("natal em sexta: quinta 24/12/2026 → segunda 28/12", () =>
     expect(iso(slaDeadline(br("2026-12-24T16:30")))).toBe("2026-12-28T16:30"));
   it("independe do fuso da máquina (entrada em UTC)", () =>

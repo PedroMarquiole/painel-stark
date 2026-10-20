@@ -12,12 +12,12 @@ create table public.empresas (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-create index empresas_nome_trgm on public.empresas using gin (nome gin_trgm_ops);
+create index empresas_nome_trgm on public.empresas using gin (nome extensions.gin_trgm_ops);
 
 create table public.contatos (
   id uuid primary key default gen_random_uuid(),
   nome text not null,
-  email citext,
+  email text,                  -- sempre minúsculo — chave de dedup
   whatsapp text,               -- E.164 normalizado (+5511987654321) — chave de dedup
   empresa_id uuid references public.empresas (id) on delete set null,
   cargo text,
@@ -27,12 +27,13 @@ create table public.contatos (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint contato_tem_canal check (email is not null or whatsapp is not null),
+  constraint email_minusculo check (email = lower(email)),
   constraint whatsapp_e164 check (whatsapp is null or whatsapp ~ '^\+[1-9][0-9]{7,14}$')
 );
 -- Deduplicação: um contato por e-mail e por WhatsApp
 create unique index contatos_email_uniq on public.contatos (email) where email is not null;
 create unique index contatos_whatsapp_uniq on public.contatos (whatsapp) where whatsapp is not null;
-create index contatos_nome_trgm on public.contatos using gin (nome gin_trgm_ops);
+create index contatos_nome_trgm on public.contatos using gin (nome extensions.gin_trgm_ops);
 create index contatos_empresa on public.contatos (empresa_id);
 
 -- Etapas do funil: probabilidade padrão e alerta de "parado"
@@ -95,13 +96,15 @@ create table public.leads (
 
   -- Passos 2 e 3 [CONFIRMAR NO REPOSITÓRIO] — opcionais até lermos o form real
   nome_informado text not null,
-  email_informado citext,
+  email_informado text,
   whatsapp_informado text,
   empresa_informada text,
   porte text,
   prazo text,
   investimento text,
+  origem_informada text,        -- "Como conheceu a Stark?" (google, instagram, indicacao…)
   respostas_extras jsonb not null default '{}'::jsonb,  -- qualquer campo novo do site cai aqui sem migration
+  consentimento_lgpd_em timestamptz,  -- aceite do aviso de privacidade (obrigatório no form do site)
 
   -- Simulador do site (ouro para a proposta)
   respondeu_simulador boolean not null default false,
@@ -141,7 +144,7 @@ create table public.leads (
 create index leads_inbox on public.leads (created_at desc) where status in ('novo', 'em_atendimento');
 create index leads_sla_aberto on public.leads (sla_vence_em) where primeira_resposta_em is null;
 create index leads_contato on public.leads (contato_id);
-create index leads_dor_trgm on public.leads using gin (dor gin_trgm_ops);
+create index leads_dor_trgm on public.leads using gin (dor extensions.gin_trgm_ops);
 
 -- Prazo do SLA é do banco, não do front
 create function public.leads_set_sla() returns trigger language plpgsql set search_path = public as $$

@@ -2,8 +2,9 @@
 -- Painel Stark · 0001 · Base: extensões, tipos, configuração, equipe, SLA
 -- ════════════════════════════════════════════════════════════════════════════
 
-create extension if not exists citext;
-create extension if not exists pg_trgm;
+-- Extensões ficam no schema `extensions` (padrão Supabase), não no public.
+create schema if not exists extensions;
+create extension if not exists pg_trgm with schema extensions;
 
 -- ─── Tipos ──────────────────────────────────────────────────────────────────
 create type public.papel_equipe as enum ('admin', 'comercial', 'projetos');
@@ -37,7 +38,6 @@ create table public.app_config (
 );
 
 insert into public.app_config (chave, valor, descricao) values
-  ('dominio_permitido', '"stark.dev.br"', 'Domínio Google da agência; contas de fora entram inativas. [CONFIRMAR]'),
   ('sla_horas_uteis', '24', 'Promessa do site: retorno em até 1 dia útil'),
   ('sla_alerta_horas', '4', 'Abaixo disso o SLA fica "vencendo"'),
   ('horario_comercial', '{"inicio":"08:00","fim":"19:00","dias":[1,2,3,4,5]}', 'Janela para mensagens automáticas ao cliente'),
@@ -46,7 +46,7 @@ insert into public.app_config (chave, valor, descricao) values
 -- ─── Equipe ─────────────────────────────────────────────────────────────────
 create table public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
-  email citext not null unique,
+  email text not null unique check (email = lower(email)),
   nome text not null,
   papel public.papel_equipe not null default 'comercial',
   ativo boolean not null default false,
@@ -75,21 +75,20 @@ language sql stable security definer set search_path = public as $$
   select coalesce(public.papel_atual() = any (papeis), false)
 $$;
 
--- Novo login → perfil. Domínio da agência entra ativo; primeiro usuário vira admin.
+-- Contas são criadas pelo admin direto no Supabase (Auth → Users), com e-mail e senha.
+-- Cadastro público fica DESLIGADO no projeto. Toda conta criada ali é confiável:
+-- entra ativa; a primeira vira admin, as demais comercial (o admin ajusta no painel).
 create function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path = public as $$
-declare
-  dominio text := (select valor #>> '{}' from public.app_config where chave = 'dominio_permitido');
-  do_dominio boolean := split_part(new.email, '@', 2) = dominio;
 begin
   insert into public.profiles (id, email, nome, avatar_url, ativo, papel)
   values (
     new.id,
-    new.email,
-    coalesce(new.raw_user_meta_data ->> 'full_name', split_part(new.email, '@', 1)),
+    lower(new.email),
+    coalesce(new.raw_user_meta_data ->> 'nome', new.raw_user_meta_data ->> 'full_name', split_part(new.email, '@', 1)),
     new.raw_user_meta_data ->> 'avatar_url',
-    do_dominio,
-    case when do_dominio and not exists (select 1 from public.profiles where papel = 'admin')
+    true,
+    case when not exists (select 1 from public.profiles where papel = 'admin')
          then 'admin'::public.papel_equipe else 'comercial'::public.papel_equipe end
   );
   return new;
@@ -98,6 +97,15 @@ end $$;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Contas que já existiam antes desta migration (ex.: a do dono, do painel anterior)
+insert into public.profiles (id, email, nome, ativo, papel)
+select u.id, lower(u.email), split_part(u.email, '@', 1), true,
+       case when row_number() over (order by u.created_at) = 1 then 'admin'::public.papel_equipe
+            else 'comercial'::public.papel_equipe end
+from auth.users u
+where u.email is not null
+on conflict (id) do nothing;
 
 -- Só admin (ou o servidor) muda papel, ativo e capacidade.
 create function public.proteger_campos_profile() returns trigger
@@ -147,20 +155,21 @@ create function public.gerar_feriados(ano int) returns void
 language plpgsql as $$
 declare p date := public.pascoa(ano);
 begin
-  insert into public.feriados (data, nome, tipo) values
-    (make_date(ano, 1, 1),   'Confraternização Universal', 'nacional'),
-    (make_date(ano, 4, 21),  'Tiradentes', 'nacional'),
-    (make_date(ano, 5, 1),   'Dia do Trabalho', 'nacional'),
-    (make_date(ano, 9, 7),   'Independência', 'nacional'),
-    (make_date(ano, 10, 12), 'Nossa Senhora Aparecida', 'nacional'),
-    (make_date(ano, 11, 2),  'Finados', 'nacional'),
-    (make_date(ano, 11, 15), 'Proclamação da República', 'nacional'),
-    (make_date(ano, 11, 20), 'Dia Nacional de Zumbi e da Consciência Negra', 'nacional'),
-    (make_date(ano, 12, 25), 'Natal', 'nacional'),
-    (p - 2,  'Sexta-feira Santa', 'nacional'),
-    (p - 48, 'Carnaval (segunda)', 'facultativo'),
-    (p - 47, 'Carnaval (terça)', 'facultativo'),
-    (p + 60, 'Corpus Christi', 'facultativo')
+  -- Carnaval e Corpus Christi ficam registrados, mas são dias úteis para a Stark (conta_no_sla = false).
+  insert into public.feriados (data, nome, tipo, conta_no_sla) values
+    (make_date(ano, 1, 1),   'Confraternização Universal', 'nacional', true),
+    (make_date(ano, 4, 21),  'Tiradentes', 'nacional', true),
+    (make_date(ano, 5, 1),   'Dia do Trabalho', 'nacional', true),
+    (make_date(ano, 9, 7),   'Independência', 'nacional', true),
+    (make_date(ano, 10, 12), 'Nossa Senhora Aparecida', 'nacional', true),
+    (make_date(ano, 11, 2),  'Finados', 'nacional', true),
+    (make_date(ano, 11, 15), 'Proclamação da República', 'nacional', true),
+    (make_date(ano, 11, 20), 'Dia Nacional de Zumbi e da Consciência Negra', 'nacional', true),
+    (make_date(ano, 12, 25), 'Natal', 'nacional', true),
+    (p - 2,  'Sexta-feira Santa', 'nacional', true),
+    (p - 48, 'Carnaval (segunda)', 'facultativo', false),
+    (p - 47, 'Carnaval (terça)', 'facultativo', false),
+    (p + 60, 'Corpus Christi', 'facultativo', false)
   on conflict (data) do nothing;
 end $$;
 

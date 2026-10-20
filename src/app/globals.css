@@ -27,11 +27,14 @@
   --c-fg-muted: #a39a8d;
   --c-fg-subtle: #756c60; /* ≥3:1 — só placeholder/metadado; nunca texto essencial */
 
-  /* Acento único da marca — ações e foco  [CONFIRMAR hex oficial da marca] */
-  --c-accent: #e8804f;
-  --c-accent-hover: #f08c5c;
-  --c-accent-fg: #1a0d06;
-  --c-accent-soft: color-mix(in oklab, var(--c-accent) 14%, transparent);
+  /* Acento único da marca Stark (#D9440F).
+     fill = fundo de botão primário · accent = texto, link e foco (tom mais claro p/ AA no escuro) */
+  --c-brand: #d9440f;
+  --c-accent: #f07445;
+  --c-accent-fill: #dc4712;
+  --c-accent-fill-hover: #e85a24;
+  --c-accent-fg: #0c0a07;
+  --c-accent-soft: color-mix(in oklab, var(--c-brand) 16%, transparent);
 
   /* Semânticas dessaturadas: só onde significam algo (SLA, status, alertas) */
   --c-success: #7fae8a;
@@ -40,7 +43,7 @@
   --c-info: #8aa4c2;
 
   /* Gráficos — ordem fixa validada (CVD ΔE ≥ 13 adjacente). Nunca ciclar. */
-  --c-series-1: #d86e40; /* brasa  */
+  --c-series-1: #e0592a; /* marca  */
   --c-series-2: #5b8fd3; /* azul   */
   --c-series-3: #3e9c79; /* verde  */
   --c-series-4: #8f78e0; /* violeta*/
@@ -67,16 +70,19 @@
   --c-fg-muted: #635a4e;
   --c-fg-subtle: #8f8578;
 
-  --c-accent: #a3461a;
-  --c-accent-hover: #8f3c14;
-  --c-accent-fg: #fff8f2;
+  --c-brand: #d9440f;
+  --c-accent: #b0360b;
+  --c-accent-fill: #c23d0d;
+  --c-accent-fill-hover: #a9340a;
+  --c-accent-fg: #ffffff;
+  --c-accent-soft: color-mix(in oklab, var(--c-brand) 12%, transparent);
 
   --c-success: #356b42;
   --c-warning: #7a5a0f;
   --c-danger: #a13d31;
   --c-info: #3d5f88;
 
-  --c-series-1: #c85a2a;
+  --c-series-1: #c8431a;
   --c-series-2: #2f6fbf;
   --c-series-3: #1e8a63;
   --c-series-4: #6b55cf;
@@ -111,7 +117,9 @@
   --color-fg-muted: var(--c-fg-muted);
   --color-fg-subtle: var(--c-fg-subtle);
   --color-accent: var(--c-accent);
-  --color-accent-hover: var(--c-accent-hover);
+  --color-accent-fill: var(--c-accent-fill);
+  --color-accent-fill-hover: var(--c-accent-fill-hover);
+  --color-brand: var(--c-brand);
   --color-accent-fg: var(--c-accent-fg);
   --color-accent-soft: var(--c-accent-soft);
   --color-success: var(--c-success);

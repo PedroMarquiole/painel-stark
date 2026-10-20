@@ -24,12 +24,13 @@ async function novoLead(contatoId: string, createdAt = new Date().toISOString())
 
 beforeAll(async () => {
   db = await createDb();
-  // Primeiro usuário do domínio vira admin; os demais entram como comercial; fora do domínio, inativo.
+  // Contas criadas pelo admin no Supabase: primeira vira admin, demais comercial, todas ativas.
   await db.query(`insert into auth.users (id, email) values ($1, 'ana@stark.dev.br')`, [ADMIN]);
   await db.query(`insert into auth.users (id, email) values ($1, 'rafa@stark.dev.br')`, [COMERCIAL]);
-  await db.query(`insert into auth.users (id, email) values ($1, 'dev@stark.dev.br')`, [DEV]);
-  await db.query(`insert into auth.users (id, email) values ($1, 'curioso@gmail.com')`, [FORA]);
+  await db.query(`insert into auth.users (id, email) values ($1, 'dev@gmail.com')`, [DEV]);
+  await db.query(`insert into auth.users (id, email) values ($1, 'ex@stark.dev.br')`, [FORA]);
   await db.query(`update profiles set papel = 'projetos' where id = $1`, [DEV]);
+  await db.query(`update profiles set ativo = false where id = $1`, [FORA]); // ex-membro desativado pelo admin
 }, 60_000);
 
 describe("migrations", () => {
@@ -40,12 +41,12 @@ describe("migrations", () => {
     expect(r.rows.map((x) => x.relname)).toEqual([]);
   });
 
-  it("perfis: primeiro do domínio é admin, fora do domínio entra inativo", async () => {
+  it("perfis: primeira conta é admin, demais comercial, qualquer domínio", async () => {
     const r = await db.query<{ email: string; papel: string; ativo: boolean }>(`select email, papel, ativo from profiles order by email`);
     expect(r.rows).toEqual([
       { email: "ana@stark.dev.br", papel: "admin", ativo: true },
-      { email: "curioso@gmail.com", papel: "comercial", ativo: false },
-      { email: "dev@stark.dev.br", papel: "projetos", ativo: true },
+      { email: "dev@gmail.com", papel: "projetos", ativo: true },
+      { email: "ex@stark.dev.br", papel: "comercial", ativo: false },
       { email: "rafa@stark.dev.br", papel: "comercial", ativo: true },
     ]);
   });
@@ -55,7 +56,7 @@ describe("SLA no banco = SLA na UI", () => {
   const casos = [
     "2026-10-20T10:00:00-03:00", "2026-10-23T15:00:00-03:00", "2026-10-24T10:00:00-03:00",
     "2026-11-19T14:00:00-03:00", "2026-02-13T11:00:00-03:00", "2026-12-24T16:30:00-03:00",
-    "2026-04-02T09:15:00-03:00", "2027-01-01T08:00:00-03:00", "2026-10-25T23:59:00-03:00",
+    "2026-04-02T09:15:00-03:00", "2026-06-03T10:00:00-03:00", "2026-02-16T08:00:00-03:00", "2027-01-01T08:00:00-03:00", "2026-10-25T23:59:00-03:00",
   ];
   it.each(casos)("%s", async (c) => {
     const r = await db.query<{ d: Date }>(`select sla_deadline($1::timestamptz) as d`, [c]);
@@ -72,9 +73,10 @@ describe("SLA no banco = SLA na UI", () => {
 });
 
 describe("deduplicação", () => {
-  it("e-mail é único sem diferenciar maiúsculas", async () => {
-    await novoContato("Joao@Empresa.com.br");
+  it("e-mail é único e sempre minúsculo (a ingestão normaliza)", async () => {
+    await novoContato("joao@empresa.com.br");
     await expect(novoContato("joao@empresa.com.br")).rejects.toThrow(/contatos_email_uniq/);
+    await expect(novoContato("Maria@Empresa.com.br")).rejects.toThrow(/email_minusculo/);
   });
   it("WhatsApp é único e precisa estar em E.164", async () => {
     await novoContato("a@x.com", "+5511987654321");
@@ -135,7 +137,7 @@ describe("RLS", () => {
   it("anon não lê nada", async () => {
     await expect(asUser(db, null, () => db.query(`select * from leads`))).rejects.toThrow(/permission denied/);
   });
-  it("usuário fora do domínio (inativo) não vê leads", async () => {
+  it("membro desativado pelo admin não vê leads", async () => {
     const r = await asUser(db, FORA, () => db.query(`select id from leads`));
     expect(r.rows).toHaveLength(0);
   });

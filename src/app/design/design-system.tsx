@@ -86,7 +86,7 @@ export function DesignSystem() {
     <div className="min-h-dvh">
       <header className="sticky top-0 z-30 border-b border-border bg-canvas/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-4 px-4 sm:px-6">
-          <span className="grid size-7 place-items-center rounded-md bg-accent text-sm font-bold text-accent-fg">S</span>
+          <span className="grid size-7 place-items-center rounded-md bg-accent-fill text-sm font-bold text-accent-fg">S</span>
           <div className="min-w-0">
             <p className="whitespace-nowrap text-sm font-semibold">Painel Stark</p>
             <p className="hidden text-xs text-fg-muted sm:block">Design system · v0.1</p>
@@ -132,7 +132,9 @@ export function DesignSystem() {
                 <Swatch name="Texto" varName="--c-fg" />
                 <Swatch name="Texto secundário" varName="--c-fg-muted" />
                 <Swatch name="Texto sutil" varName="--c-fg-subtle" note="só metadado" />
-                <Swatch name="Acento" varName="--c-accent" note="ações e foco" />
+                <Swatch name="Marca" varName="--c-brand" note="Stark" />
+                <Swatch name="Acento · botão" varName="--c-accent-fill" />
+                <Swatch name="Acento · texto e foco" varName="--c-accent" />
               </div>
               <div className="flex flex-col gap-3">
                 <p className="text-xs font-medium uppercase tracking-wider text-fg-subtle">Semânticas</p>

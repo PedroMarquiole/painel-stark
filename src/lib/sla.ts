@@ -1,10 +1,11 @@
 /**
  * SLA de primeira resposta: "retorno em até 1 dia útil" (promessa do site).
  *
- * Regra adotada  [CONFIRMAR com a Stark]:
+ * Regra adotada (confirmada pela Stark):
  *  - O relógio só corre em dias úteis (seg–sex, exceto feriados), 24h por dia.
  *  - Prazo = 24h de relógio útil a partir da chegada.
  *    Sex 15:00 → Seg 15:00 · Sáb 10:00 → fim de Seg (Ter 00:00) · véspera de feriado pula o feriado.
+ *  - Só feriados nacionais pausam o relógio; Carnaval e Corpus Christi são dias úteis.
  *  - Fuso America/Sao_Paulo (UTC−3 fixo; sem horário de verão desde 2019).
  *
  * A mesma regra existe no banco (função public.sla_deadline) — o banco grava
@@ -42,7 +43,7 @@ const key = (y: number, m: number, d: number) =>
   `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
 export interface HolidayOptions {
-  /** Carnaval (seg/ter) e Corpus Christi são ponto facultativo. Padrão: contam como folga. [CONFIRMAR] */
+  /** Carnaval (seg/ter) e Corpus Christi são ponto facultativo. Decisão da Stark: são dias úteis (padrão false). */
   incluirFacultativos?: boolean;
   /** Feriados extras (estaduais/municipais/recesso), formato YYYY-MM-DD. */
   extras?: string[];
@@ -51,7 +52,7 @@ export interface HolidayOptions {
 const cache = new Map<string, Set<string>>();
 
 export function holidays(year: number, opts: HolidayOptions = {}): Set<string> {
-  const { incluirFacultativos = true, extras = [] } = opts;
+  const { incluirFacultativos = false, extras = [] } = opts;
   const ck = `${year}|${incluirFacultativos}|${extras.join(",")}`;
   const hit = cache.get(ck);
   if (hit) return hit;

@@ -9,7 +9,7 @@
 painel-stark/
 ├─ src/
 │  ├─ app/
-│  │  ├─ (auth)/login/              Google (domínio da agência) + magic link          [F1]
+│  │  ├─ (auth)/login/              e-mail e senha (Supabase Auth)                    [F1]
 │  │  ├─ (painel)/                  layout: sidebar, ⌘K, atalhos globais, realtime    [F1]
 │  │  │  ├─ page.tsx                Home · KPIs em widgets                             [F1]
 │  │  │  ├─ leads/                  Caixa de entrada + drawer (@modal/(.)leads/[id])  [F1]
@@ -41,7 +41,7 @@ painel-stark/
 │  ├─ migrations/                   0001…0005  ✅
 │  ├─ functions/                                                                       [F1+]
 │  │  ├─ _shared/                   cors (ALLOWED_ORIGINS), zod, WhatsAppProvider, resend, claude
-│  │  ├─ ingest-lead/               POST do site → valida → dedup → RPC
+│  │  ├─ novo-pedido/               POST do site → valida → dedup → RPC (endereço mantido)
 │  │  ├─ automation-runner/         consome automacoes_execucoes
 │  │  ├─ outbox-sender/             envia mensagens_saida (horário comercial, opt-out, retry)
 │  │  └─ proposta-publica/          leitura por token, rastreio, aceite
@@ -54,8 +54,9 @@ painel-stark/
 
 | Migration | Conteúdo |
 |---|---|
-| `0001_base` | enums (serviços e situações do site, etapas, motivos de perda, fases), `app_config`, `profiles` + papéis, perfil automático no login (domínio da agência entra ativo, 1º vira admin), proteção de papel, `feriados` gerados (Páscoa calculada), **`sla_deadline()`** |
-| `0002_crm` | `empresas`, `contatos` (dedup único por e-mail *citext* e WhatsApp *E.164*), `etapas_config` (probabilidade e "parado há X dias" por etapa), `negocios`, `leads` (protocolo por sequence, SLA gravado na chegada, campos dos passos 2/3 opcionais + `respostas_extras`, UTM, simulador, idempotência), `atividades`, `tarefas`, `reunioes`, `filtros_salvos` |
+| `0000_remover_painel_antigo` | remove tabelas, funções, tipos e jobs do painel anterior do `stark-dashboard` (idempotente) |
+| `0001_base` | enums (serviços e situações do site, etapas, motivos de perda, fases), `app_config`, `profiles` + papéis, perfil automático para contas criadas pelo admin (1ª vira admin), proteção de papel, `feriados` gerados (Páscoa calculada), **`sla_deadline()`** |
+| `0002_crm` | `empresas`, `contatos` (dedup único por e-mail minúsculo e WhatsApp *E.164*), `etapas_config` (probabilidade e "parado há X dias" por etapa), `negocios`, `leads` (protocolo por sequence, SLA gravado na chegada, campos dos passos 2/3 opcionais + `respostas_extras`, UTM, "como conheceu", consentimento LGPD, simulador, idempotência), `atividades`, `tarefas`, `reunioes`, `filtros_salvos` |
 | `0003_operacao` | `propostas` (+ itens por fase, versões, token público, visualizações, aceite), `projetos` (+ fases, entregas), `apontamentos_horas`, `contratos` (avulso/recorrente), `faturas` (idempotente por competência), `nps_respostas`, views `v_mrr` e `v_projeto_orcado_realizado` |
 | `0004_automacao` | `templates_mensagem`, `automacoes` (as 15 regras, todas **desligadas**), `automacoes_execucoes` (fila idempotente com retry), `mensagens_saida` (outbox: nada é enviado duas vezes), `notificacoes`, `push_subscriptions`, `ingest_rate_limit` |
 | `0005_seguranca` | `auditoria` (diff só do que mudou), **RLS em todas as tabelas**, anon sem acesso, Realtime em leads/negócios/atividades/tarefas/notificações |
@@ -101,39 +102,51 @@ Mobile: caixa de entrada, drawer (responder), funil (mover card por menu) e home
 
 O site mostra o **protocolo** na tela de confirmação, e o protocolo tem que vir do banco. Com o webhook assíncrono do Netlify Forms, o site **não teria** o número na hora. Recomendo:
 
-1. **O formulário faz `POST {SUPABASE_URL}/functions/v1/ingest-lead`**, que responde `{ protocolo }` de forma síncrona. Funciona em qualquer hospedagem: na mudança de domínio, só se atualiza `ALLOWED_ORIGINS`.
+1. **O formulário faz `POST {SUPABASE_URL}/functions/v1/novo-pedido`** (endereço que o site já usa), que responde `{ protocolo }` de forma síncrona. Funciona em qualquer hospedagem: na mudança de domínio, só se atualiza `ALLOWED_ORIGINS`.
 2. A Edge Function cuida de: CORS por env, Zod, honeypot, rate limit por `ip_hash`, normalização (e-mail minúsculo, WhatsApp → E.164), dedup de contato, anexar ao negócio aberto do mesmo contato ou abrir um novo, `chave_idempotencia` (reenvio não duplica), registro do evento das automações 1–5.
 3. O Netlify Forms vira só *fallback* (webhook → mesma função), se quiserem manter.
 
 ## 5. Design system (feito: `/design`)
 
-- **Tokens** em `src/app/globals.css`: 4 superfícies quentes (`#0C0A07 → #221E19`), texto off-white `#EDE8E0`, acento único, semânticas dessaturadas e tema claro creme. Densidade **confortável/compacta** via `--row-h` e `--pad-card`.
+- **Tokens** em `src/app/globals.css`: 4 superfícies quentes (`#0C0A07 → #221E19`), texto off-white `#EDE8E0`, acento único da marca `#D9440F`, semânticas dessaturadas e tema claro creme. Densidade **confortável/compacta** via `--row-h` e `--pad-card`.
 - **Contraste AA verificado**: texto, texto secundário, acento e semânticas ≥ 4,5:1 nas 3 superfícies dos 2 temas. O "texto sutil" (≥ 3:1) fica só para metadado.
 - **Tipografia**: Geist + Geist Mono `tabular-nums`. A escala do Tailwind foi **reduzida a 4 tamanhos** (12/13/15/28), e qualquer outro tamanho não compila.
 - **Gráficos**: 6 cores em ordem fixa, **validadas para daltonismo** nos dois temas (ΔE adjacente ≥ 13), com tooltip único e clique levando à lista.
 - **Componentes**: botão, input/textarea, badge, **SLA ao vivo**, card de KPI com sparkline, linha da inbox com hover preview, card de Kanban (estado "parado" e "arrastando"), drawer, toast com Desfazer, edição inline otimista, vazio/skeleton/erro, kbd.
 - `prefers-reduced-motion` respeitado; animações de 150 a 250 ms com ease-out.
 
-## 6. [CONFIRMAR] — preciso de vocês
+## 6. Decisões tomadas (20/10/2026)
 
-| # | Item | O que assumi |
-|---|---|---|
-| 1 | **Repositório do site**: campos dos passos 2 e 3 e como o form envia hoje | Campos opcionais + `respostas_extras` |
-| 2 | **Cor e logo da marca** (não consegui abrir o site daqui; a rede deste ambiente bloqueou) | Acento brasa `#E8804F` |
-| 3 | **Regra do "1 dia útil"**: 24h de relógio útil ou horário comercial (ex.: 9h–18h)? | 24h em dias úteis: sex 15h → seg 15h; sábado → fim de segunda |
-| 4 | **Carnaval e Corpus Christi** contam como folga no SLA? | Sim (marcados como facultativo, desligáveis) |
-| 5 | **Domínio Google** da agência | `stark.dev.br` (placeholder) |
-| 6 | **WhatsApp**: Cloud API oficial? Exige *templates aprovados pela Meta* para a confirmação automática | Cloud API atrás de `WhatsAppProvider` |
-| 7 | **Agenda**: Google Calendar ou Cal.com? | Google Calendar + Meet |
-| 8 | **Deploy do painel**: Vercel ou Netlify? | Vercel |
-| 9 | **Projeto Supabase**: crio um novo (o conector do Supabase está ativo nesta sessão) ou já existe? | — |
+| Tema | Decisão |
+|---|---|
+| SLA "1 dia útil" | 24h de relógio só em dias úteis: sex 15h → seg 15h; sábado → fim de segunda |
+| Feriados | Só os nacionais pausam o SLA. **Carnaval e Corpus Christi são dias úteis** |
+| Cor da marca | **`#D9440F`**. Botão `#DC4712` (escuro) / `#C23D0D` (claro); texto e foco em tons AA; gráficos revalidados |
+| Login | **E-mail e senha (Supabase Auth)**. Contas criadas pelo admin no Supabase; cadastro público desligado. 1ª conta = admin, demais = comercial |
+| Banco | **Evoluir o projeto `stark-dashboard`** (sa-east-1). Plano gratuito já tem 2 projetos ativos |
+| Painel antigo | Dados de teste, **descartados**. Migration `0000` remove o legado; a conta de login existente vira admin |
+| Ingestão | Manter o endereço **`novo-pedido`** (o site já chama) com contrato compatível: `{ ok, numero }` |
+| WhatsApp | Ainda não contratado. Interface pronta, provedor `none`; Fase 1 só com e-mail |
+| Agenda | Decidir na Fase 2 |
+| Deploy | Vercel |
+
+### O que o painel antigo revelou sobre o formulário
+
+A função `novo-pedido` recebe: `nome, email, whatsapp, empresa, servico` (**um só**), `descricao, prazo, investimento, origem, utm_*, consentimento` (bool, obrigatório) e `website` (campo-isca). O painel antigo também tinha `decisor, motivo_prazo, ferramentas_atuais, qtd_usuarios`. O briefing fala em serviços **múltiplos** + `situacao_atual` + `dor`. A nova ingestão aceita os dois formatos; o repositório do site define qual é o atual.
+
+### Pendências
+
+- Repositório do site (`owner/repo`) para fechar os campos e o formato de `servico`
+- Repositório vazio para o painel (`owner/repo`)
+- Quais recursos de segurança trazer: anonimização LGPD e 2FA (o consentimento LGPD já entrou)
+- Autorização para aplicar as migrations no `stark-dashboard` (apaga o painel antigo)
 
 ## 7. Como rodar
 
 ```bash
 npm install
 npm run dev        # http://localhost:3000/design
-npm test           # 46 testes: SLA, feriados, paridade SQL↔TS, dedup, idempotência, RLS
+npm test           # 51 testes: SLA, feriados, paridade SQL↔TS, dedup, idempotência, RLS, migração do legado
 npm run build
 ```
 
@@ -151,4 +164,4 @@ npm run build
 
 ## 9. Fase 1 (após aprovação)
 
-Auth (Google + magic link) → `ingest-lead` (ajustada ao form real) → caixa de entrada realtime com SLA → drawer/ficha → Kanban com drag-and-drop → automações 1–5 (fila + outbox) → home com KPIs básicos → seed fictício → testes de dedup/idempotência da ingestão.
+Auth (e-mail e senha) → `novo-pedido` (ajustada ao form real) → caixa de entrada realtime com SLA → drawer/ficha → Kanban com drag-and-drop → automações 1–5 (fila + outbox) → home com KPIs básicos → seed fictício → testes de dedup/idempotência da ingestão.
