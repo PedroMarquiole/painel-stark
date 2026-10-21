@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/input";
 import { InlineField } from "@/components/domain/inline-field";
-import { SlaBadge } from "@/components/domain/sla-badge";
+import { Andamento } from "../../leads/linha";
 import { LinhaTempo } from "@/components/painel/linha-tempo";
 import { usePainel } from "@/components/painel/contexto";
 import { formatBRL, formatProtocolo, formatarTelefone } from "@/lib/utils";
@@ -123,7 +123,7 @@ export function Ficha360({ ficha }: { ficha: Ficha }) {
                   <span className="text-xs text-fg-muted">{fmtDia.format(new Date(l.created_at))}</span>
                   {l.servicos.map((s) => <Badge key={s} tone="outline">{SERVICOS[s]}</Badge>)}
                   <span className="flex-1" />
-                  <SlaBadge deadline={new Date(l.sla_vence_em)} respondedAt={l.primeira_resposta_em ? new Date(l.primeira_resposta_em) : null} />
+                  <Andamento lead={l} />
                 </span>
                 <span className="text-fg-muted">{l.dor}</span>
               </Link>

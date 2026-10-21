@@ -20,20 +20,44 @@ export async function responderLead(leadId: string, canal: "email" | "whatsapp",
   return executar((sb) => sb.rpc("responder_lead", { p_lead: leadId, p_canal: canal, p_assunto: assunto, p_corpo: corpo }), ["/leads", "/"]);
 }
 
+const DESCARTE = "Pedido descartado";
+
+/** Descarta o pedido; se o negócio dele ainda está em Novo e não tem outro pedido em aberto, fecha como perdido (sai do funil). */
 export async function descartarLead(leadId: string, motivo: string) {
-  return executar((sb) => sb.from("leads").update({ status: "descartado", motivo_descarte: motivo }).eq("id", leadId).select("id"), ["/leads"], true);
+  return executar(async (sb) => {
+    const r = await sb.from("leads").update({ status: "descartado", motivo_descarte: motivo }).eq("id", leadId).select("id, negocio_id");
+    const neg = r.data?.[0]?.negocio_id;
+    if (r.error || !r.data?.length || !neg) return r;
+    const { count } = await sb.from("leads").select("id", { count: "exact", head: true }).eq("negocio_id", neg).in("status", ["novo", "em_atendimento"]);
+    if (!count) {
+      await sb.from("negocios").update({ etapa: "perdido", motivo_perda: "outro", motivo_perda_detalhe: `${DESCARTE}: ${motivo}` }).eq("id", neg).eq("etapa", "novo");
+    }
+    return r;
+  }, ["/leads", "/funil", "/"], true);
 }
 
+/** Reabre um pedido descartado (e o negócio que foi fechado só por causa do descarte). */
 export async function restaurarLead(leadId: string, status: "novo" | "em_atendimento") {
-  return executar((sb) => sb.from("leads").update({ status, motivo_descarte: null }).eq("id", leadId).select("id"), ["/leads"], true);
+  return executar(async (sb) => {
+    const r = await sb.from("leads").update({ status, motivo_descarte: null }).eq("id", leadId).select("id, negocio_id");
+    const neg = r.data?.[0]?.negocio_id;
+    if (r.error || !r.data?.length || !neg) return r;
+    await sb.from("negocios").update({ etapa: "novo", motivo_perda: null, motivo_perda_detalhe: null })
+      .eq("id", neg).eq("etapa", "perdido").like("motivo_perda_detalhe", `${DESCARTE}:%`);
+    return r;
+  }, ["/leads", "/funil", "/"], true);
 }
 
 export async function atribuirLead(leadId: string, negocioId: string | null, profileId: string | null) {
   return executar(async (sb) => {
-    const r = await sb.from("leads").update({ responsavel_id: profileId }).eq("id", leadId).select("id");
-    if (r.error || !r.data?.length || !negocioId) return r;
+    const r = await sb.from("leads").update({ responsavel_id: profileId }).eq("id", leadId).select("id, contato_id");
+    if (r.error || !r.data?.length) return r;
+    // o cliente passa a ser de quem cuida do pedido (ficha do cliente mostra o mesmo responsável)
+    const contato = r.data[0].contato_id;
+    if (contato && profileId) await sb.from("contatos").update({ responsavel_id: profileId }).eq("id", contato);
+    if (!negocioId) return r;
     return sb.from("negocios").update({ responsavel_id: profileId }).eq("id", negocioId).select("id");
-  }, ["/leads", "/funil"], true);
+  }, ["/leads", "/funil", "/clientes"], true);
 }
 
 export async function moverNegocio(id: string, etapa: Etapa, ordem: number, motivo?: MotivoPerda | null, detalhe?: string) {

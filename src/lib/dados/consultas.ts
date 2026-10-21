@@ -53,14 +53,23 @@ export async function listarLeadsInbox(dias = 14): Promise<LeadInbox[]> {
   if (OFFLINE) return fx.leads();
   const janela = Math.min(Math.max(dias, 14), 90);
   const sb = await supabaseServidor();
-  const { data, error } = await sb
-    .from("leads")
-    .select(SELECT_LEAD)
-    .or(`status.in.(novo,em_atendimento),created_at.gte.${diasAtras(janela)}`)
-    .order("created_at", { ascending: false })
-    .limit(janela > 14 ? 1000 : 300);
-  if (error) throw new Error(error.message);
-  return (data as unknown as LinhaLead[]).map(paraInbox);
+  // Duas consultas: os sem resposta (todos, por mais antigos que sejam: são os de prazo estourado)
+  // e o resto do que está aberto ou chegou na janela, com limite.
+  const [semResp, resto] = await Promise.all([
+    sb.from("leads").select(SELECT_LEAD).in("status", ["novo", "em_atendimento"]).is("primeira_resposta_em", null)
+      .order("created_at", { ascending: false }).limit(1000),
+    sb.from("leads").select(SELECT_LEAD)
+      .or(`status.in.(novo,em_atendimento),created_at.gte.${diasAtras(janela)}`)
+      .order("created_at", { ascending: false })
+      .limit(janela > 14 ? 1000 : 300),
+  ]);
+  if (semResp.error) throw new Error(semResp.error.message);
+  if (resto.error) throw new Error(resto.error.message);
+  const vistos = new Set<string>();
+  return ([...(semResp.data ?? []), ...(resto.data ?? [])] as unknown as LinhaLead[])
+    .filter((l) => !vistos.has(l.id) && vistos.add(l.id))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map(paraInbox);
 }
 
 export async function buscarLeadInbox(id: string): Promise<LeadInbox | null> {

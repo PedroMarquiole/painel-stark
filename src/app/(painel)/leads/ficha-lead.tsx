@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { ArrowUpRight, Mail, MessageCircle, Phone, Send, Trash2 } from "lucide-react";
+import { ArrowUpRight, Mail, MessageCircle, Phone, RotateCcw, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import { formatBRL, formatProtocolo, formatarTelefone } from "@/lib/utils";
 import { chamar } from "@/lib/chamar";
 import { MOTIVOS_DESCARTE, ROTULO_ETAPA, SERVICOS, SITUACOES, rotuloOrigem } from "@/lib/rotulos";
 import type { Atividade, LeadDetalhe, LeadInbox } from "@/lib/dados/tipos";
-import { adicionarNota, atribuirLead, atualizarContato, carregarLead, registrarContato, responderLead } from "../acoes";
+import { adicionarNota, atribuirLead, atualizarContato, carregarLead, descartarLead, registrarContato, responderLead, restaurarLead } from "../acoes";
 
 const fmtData = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
 
@@ -119,6 +119,26 @@ export function FichaLead({
     setModo(null);
     // Na 1ª resposta, a caixa de entrada avisa para onde o pedido foi
     if (base.primeira_resposta_em) toast.success("E-mail enviado", { description: "Sai em segundos e aparece na linha do tempo." });
+  }
+
+  async function descartar(motivo: string) {
+    if (!base) return;
+    // Na lista: a caixa de entrada descarta e oferece Desfazer. Fora dela (link direto para pedido antigo): descarta aqui.
+    if (resumo) return onDescartar(resumo, motivo);
+    const r = await chamar(descartarLead(base.id, motivo));
+    if (!r.ok) return void toast.error(r.erro);
+    setLead((l) => l && { ...l, status: "descartado", motivo_descarte: motivo });
+    toast.success("Pedido descartado");
+  }
+
+  async function reabrir() {
+    if (!base) return;
+    const status = base.primeira_resposta_em ? "em_atendimento" : "novo";
+    const r = await chamar(restaurarLead(base.id, status));
+    if (!r.ok) return void toast.error(r.erro);
+    onAtualizar(base.id, { status });
+    setLead((l) => l && { ...l, status, motivo_descarte: null });
+    toast.success("Pedido reaberto", { description: status === "novo" ? "Voltou para Novos, com o prazo de resposta." : "Voltou para Em conversa." });
   }
 
   async function registrarExterno(form: FormData) {
@@ -253,7 +273,7 @@ export function FichaLead({
               <p className="text-sm">Por que descartar este pedido?</p>
               <div className="flex flex-wrap gap-1.5">
                 {MOTIVOS_DESCARTE.map((m, i) => (
-                  <Button key={m} size="sm" autoFocus={i === 0} onClick={() => { if (resumo) onDescartar(resumo, m); setModo(null); }}>{m}</Button>
+                  <Button key={m} size="sm" autoFocus={i === 0} onClick={() => { descartar(m); setModo(null); }}>{m}</Button>
                 ))}
               </div>
               <div className="flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => setModo(null)}>Cancelar</Button></div>
@@ -273,6 +293,7 @@ export function FichaLead({
               </Tooltip>
               <Button size="sm" onClick={() => setModo("nota")}>Nota</Button>
               {!arquivadoComo && <Button size="sm" variant="danger" onClick={() => setModo("descartar")}><Trash2 /> Descartar</Button>}
+              {base.status === "descartado" && <Button size="sm" onClick={reabrir}><RotateCcw /> Reabrir pedido</Button>}
               <Button size="sm" variant="ghost" asChild><Link href={`/clientes/${base.contato_id}`}>Ficha do cliente <ArrowUpRight /></Link></Button>
             </div>
           )}
@@ -308,11 +329,24 @@ export function FichaLead({
             <Campo rotulo="Hoje resolve">{base.situacao_atual ? SITUACOES[base.situacao_atual] : "—"}</Campo>
             {lead && (
               <>
-                <Campo rotulo="Nome"><InlineField value={lead.contato.nome} onSave={async (v) => { const r = await chamar(atualizarContato(lead.contato.id, { nome: v })); if (!r.ok) { toast.error(r.erro); throw 0; } onAtualizar(base.id, { nome: v }); }} /></Campo>
-                <Campo rotulo="E-mail"><InlineField value={lead.contato.email ?? ""} onSave={async (v) => { const r = await chamar(atualizarContato(lead.contato.id, { email: v })); if (!r.ok) { toast.error(r.erro); throw 0; } }} /></Campo>
+                <Campo rotulo="Nome"><InlineField disabled={!podeAgir} value={lead.contato.nome} onSave={async (v) => { const r = await chamar(atualizarContato(lead.contato.id, { nome: v })); if (!r.ok) { toast.error(r.erro); throw 0; } setLead((l) => l && { ...l, contato: { ...l.contato, nome: v } }); onAtualizar(base.id, { nome: v }); }} /></Campo>
+                <Campo rotulo="E-mail"><InlineField value={lead.contato.email ?? ""} disabled={!podeAgir} onSave={async (v) => {
+                  const r = await chamar(atualizarContato(lead.contato.id, { email: v }));
+                  if (!r.ok) { toast.error(r.erro); throw 0; }
+                  const email = v.trim().toLowerCase() || null; // o "Para" do Responder usa este estado
+                  setLead((l) => l && { ...l, contato: { ...l.contato, email } });
+                  onAtualizar(base.id, { email });
+                }} /></Campo>
                 <Campo rotulo="WhatsApp">
                   <span className="flex items-center gap-1">
-                    <InlineField mono exibir={formatarTelefone} value={lead.contato.whatsapp ?? ""} onSave={async (v) => { const r = await chamar(atualizarContato(lead.contato.id, { whatsapp: v })); if (!r.ok) { toast.error(r.erro); throw 0; } }} />
+                    <InlineField mono exibir={formatarTelefone} value={lead.contato.whatsapp ?? ""} disabled={!podeAgir} onSave={async (v) => {
+                      const r = await chamar(atualizarContato(lead.contato.id, { whatsapp: v }));
+                      if (!r.ok) { toast.error(r.erro); throw 0; }
+                      const d = v.replace(/\D/g, "").replace(/^0+/, "");
+                      const whatsapp = !d ? null : v.trim().startsWith("+") ? `+${d}` : d.length <= 11 ? `+55${d}` : `+${d}`;
+                      setLead((l) => l && { ...l, contato: { ...l.contato, whatsapp } });
+                      onAtualizar(base.id, { whatsapp });
+                    }} />
                     {lead.contato.whatsapp && (
                       <Button variant="ghost" size="icon-sm" asChild aria-label="Abrir conversa no WhatsApp">
                         <a href={`https://wa.me/${lead.contato.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá, ${primeiroNome}! Aqui é ${perfil.nome.split(" ")[0]}, da Stark.`)}`} target="_blank" rel="noreferrer"><Phone /></a>
@@ -348,9 +382,11 @@ export function FichaLead({
               <h3 className="mb-2 text-xs font-medium text-fg-subtle">Outros pedidos deste cliente</h3>
               <ul className="flex flex-col gap-1.5">
                 {lead.outros_pedidos.map((o) => (
-                  <li key={o.id} className="flex gap-2 text-sm">
-                    <span className="num text-xs text-fg-subtle">{formatProtocolo(o.protocolo)}</span>
-                    <span className="truncate text-fg-muted">{o.dor}</span>
+                  <li key={o.id}>
+                    <Link href={`/leads?id=${o.id}`} className="flex gap-2 rounded-md text-sm hover:text-fg">
+                      <span className="num text-xs text-fg-subtle">{formatProtocolo(o.protocolo)}</span>
+                      <span className="truncate text-fg-muted">{o.dor}</span>
+                    </Link>
                   </li>
                 ))}
               </ul>
