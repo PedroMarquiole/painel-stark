@@ -87,7 +87,7 @@ export async function detalheLead(id: string): Promise<LeadDetalhe | null> {
   const { data: l } = await sb
     .from("leads")
     .select(`${SELECT_LEAD}, motivo_descarte, prazo, investimento, porte, respostas_extras, simulador, utm_medium, utm_campaign, consentimento_lgpd_em,
-             contato_full:contatos(id, nome, email, whatsapp, cargo, opt_out_email), negocio:negocios(id, titulo, etapa, valor_estimado)`)
+             contato_full:contatos(id, nome, email, whatsapp, cargo, opt_out_email), negocio_full:negocios!leads_negocio_id_fkey(id, titulo, etapa, valor_estimado)`)
     .eq("id", id)
     .maybeSingle();
   if (!l) return null;
@@ -107,7 +107,7 @@ export async function detalheLead(id: string): Promise<LeadDetalhe | null> {
     utm: { source: linha.utm_source, medium: linha.utm_medium as string | null, campaign: linha.utm_campaign as string | null },
     consentimento_lgpd_em: linha.consentimento_lgpd_em as string | null,
     contato: linha.contato_full as LeadDetalhe["contato"],
-    negocio: linha.negocio as LeadDetalhe["negocio"],
+    negocio: linha.negocio_full as LeadDetalhe["negocio"],
     outros_pedidos: outros.data ?? [],
     atividades,
   };
