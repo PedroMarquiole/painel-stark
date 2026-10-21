@@ -136,7 +136,8 @@ export async function listarNegocios(): Promise<NegocioCard[]> {
     const c = contato as unknown as { nome: string; email: string | null; whatsapp: string | null; empresa: { nome: string } | null } | null;
     const pedidos = ((leads ?? []) as { id: string; protocolo: number; primeira_resposta_em: string | null; sla_vence_em: string; status: string }[])
       .sort((a, b) => a.protocolo - b.protocolo);
-    const pendente = pedidos.find((x) => !x.primeira_resposta_em && x.status !== "descartado");
+    // Mesma regra da caixa e do Início (pedidos.ts): pedido em aberto sem 1ª resposta
+    const pendente = pedidos.find((x) => !x.primeira_resposta_em && (x.status === "novo" || x.status === "em_atendimento"));
     return {
       ...n,
       contato_nome: c?.nome ?? "—",
@@ -144,7 +145,7 @@ export async function listarNegocios(): Promise<NegocioCard[]> {
       protocolo: pedidos[0]?.protocolo ?? null,
       lead_id: pedidos[0]?.id ?? null,
       // negócio criado à mão (sem pedido) conta como já em conversa
-      respondido: pedidos.length === 0 || pedidos.some((x) => x.primeira_resposta_em),
+      respondido: !pendente,
       sla_vence_em: pendente?.sla_vence_em ?? null,
       contato_email: c?.email ?? null,
       contato_whatsapp: c?.whatsapp ?? null,
@@ -234,7 +235,7 @@ export async function buscar(qBruto: string): Promise<ResultadoBusca[]> {
   return [
     ...(porProtocolo.data ?? []).map((l) => ({ tipo: "lead" as const, id: l.id, titulo: `#${String(l.protocolo).padStart(4, "0")} · ${l.nome_informado}`, subtitulo: "Pedido", href: `/leads?id=${l.id}` })),
     ...(contatos.data ?? []).map((c) => ({ tipo: "contato" as const, id: c.id, titulo: c.nome, subtitulo: [(c.empresa as unknown as { nome: string } | null)?.nome, c.email].filter(Boolean).join(" · "), href: `/clientes/${c.id}` })),
-    ...(negocios.data ?? []).map((n) => ({ tipo: "negocio" as const, id: n.id, titulo: n.titulo, subtitulo: "Negócio", href: `/clientes/${n.contato_id}` })),
+    ...(negocios.data ?? []).map((n) => ({ tipo: "negocio" as const, id: n.id, titulo: n.titulo, subtitulo: "Negócio", href: `/funil?id=${n.id}` })),
   ];
 }
 

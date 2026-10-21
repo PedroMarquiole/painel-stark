@@ -351,7 +351,10 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
     return true;
   });
   const temFiltro = Boolean(termo || resp || servico);
-  const porEtapa = (e: Etapa) => visiveis.filter((n) => n.etapa === e).sort(ORDENS[ordem].f);
+  const porEtapa = (e: Etapa) => visiveis.filter((n) => n.etapa === e).sort(
+    // fechados: o mais recente primeiro (quem acabou de ganhar/perder aparece no topo)
+    fechado(e) ? (x, y) => (y.ganho_em ?? y.perdido_em ?? "").localeCompare(x.ganho_em ?? x.perdido_em ?? "") : ORDENS[ordem].f,
+  );
   const alternar = (e: Etapa) => setAbertas((a) => { const n = new Set(a); if (n.has(e)) n.delete(e); else n.add(e); return n; });
 
   // Mês e trimestre no fuso de São Paulo (não no fuso de quem abre a página)
@@ -543,6 +546,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
             <dt className="text-fg-muted">Título</dt>
             <dd className="min-w-0">
               <InlineField disabled={somenteLeitura} value={selecionado.titulo} onSave={async (v) => {
+                if (!v.trim()) { toast.error("O título não pode ficar vazio"); throw 0; }
                 const r = await chamar(atualizarNegocio(selecionado.id, { titulo: v }));
                 if (!r.ok) { toast.error(r.erro); throw 0; }
                 setNegocios((xs) => xs.map((n) => (n.id === selecionado.id ? { ...n, titulo: v } : n)));
@@ -551,8 +555,8 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
             <dt className="text-fg-muted">Valor estimado</dt>
             <dd>
               <InlineField mono disabled={somenteLeitura} placeholder="Informar valor" exibir={(v) => formatBRL(Number(v))}
-                value={selecionado.valor_estimado ? String(selecionado.valor_estimado) : ""} onSave={async (v) => {
-                const valor = v.trim() ? Number(v.replace(/[^\d,]/g, "").replace(",", ".")) : null;
+                value={selecionado.valor_estimado ? String(selecionado.valor_estimado).replace(".", ",") : ""} onSave={async (v) => {
+                const valor = lerValor(v);
                 if (valor !== null && Number.isNaN(valor)) { toast.error("Valor inválido"); throw 0; }
                 const r = await chamar(atualizarNegocio(selecionado.id, { valor_estimado: valor }));
                 if (!r.ok) { toast.error(r.erro); throw 0; }
@@ -562,8 +566,8 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
             <dt className="text-fg-muted">Chance de fechar</dt>
             <dd>
               <InlineField mono disabled={somenteLeitura || fechado(selecionado.etapa)} exibir={(v) => `${v}%`} value={String(selecionado.probabilidade)} onSave={async (v) => {
-                const p = Math.max(0, Math.min(100, Math.round(Number(v))));
-                if (Number.isNaN(p)) { toast.error("Use um número de 0 a 100"); throw 0; }
+                const p = Math.max(0, Math.min(100, Math.round(Number(v.replace(/[%\s]/g, "").replace(",", ".")))));
+                if (!v.trim() || Number.isNaN(p)) { toast.error("Use um número de 0 a 100"); throw 0; }
                 const r = await chamar(atualizarNegocio(selecionado.id, { probabilidade: p }));
                 if (!r.ok) { toast.error(r.erro); throw 0; }
                 setNegocios((xs) => xs.map((n) => (n.id === selecionado.id ? { ...n, probabilidade: p } : n)));
@@ -599,9 +603,13 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
                 disabled={somenteLeitura || selecionado.etapa === "ganho" || selecionado.etapa === "perdido"}
                 defaultValue={selecionado.previsao_fechamento ?? ""}
                 key={selecionado.id}
-                onChange={async (e) => {
+                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                onBlur={async (e) => {
+                  // salva ao sair do campo: digitando o ano, o valor passa por 0002, 0020… e não deve ir para o banco
                   const v = e.target.value || null;
                   const antes = selecionado.previsao_fechamento;
+                  if (v === (antes ?? null)) return;
+                  if (v && v < "2000-01-01") { e.target.value = antes ?? ""; return void toast.error("Data inválida"); }
                   setNegocios((xs) => xs.map((n) => (n.id === selecionado.id ? { ...n, previsao_fechamento: v } : n)));
                   const r = await chamar(atualizarNegocio(selecionado.id, { previsao_fechamento: v }));
                   if (!r.ok) {
@@ -613,6 +621,10 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
             </dd>
             <dt className="text-fg-muted">Serviços</dt>
             <dd className="flex flex-wrap gap-1">{selecionado.servicos.map((s) => <Badge key={s} tone="outline">{SERVICOS[s]}</Badge>)}</dd>
+            {selecionado.etapa === "perdido" && (<>
+              <dt className="text-fg-muted">Motivo da perda</dt>
+              <dd>{selecionado.motivo_perda ? MOTIVOS_PERDA[selecionado.motivo_perda] : "Não informado"}{selecionado.motivo_perda_detalhe && <span className="text-fg-muted">: {selecionado.motivo_perda_detalhe}</span>}</dd>
+            </>)}
             <dt className="text-fg-muted">Na etapa há</dt>
             <dd className="num">{diasNaEtapa(selecionado) === 1 ? "1 dia" : `${diasNaEtapa(selecionado)} dias`}</dd>
             {!fechado(selecionado.etapa) && (<>
@@ -676,4 +688,13 @@ function DialogPerda({ aberto, onCancelar, onConfirmar }: { aberto: boolean; onC
       </div>
     </Dialog>
   );
+}
+
+/** "21.500,50", "21500,5", "21500.50" ou "R$ 21.500" → número. */
+function lerValor(v: string) {
+  const limpo = v.trim().replace(/[^\d,.]/g, "");
+  if (!limpo) return null;
+  if (/,/.test(limpo)) return Number(limpo.replace(/\./g, "").replace(",", "."));
+  // só pontos: "21.500" é milhar; "21500.5" é decimal
+  return Number(/^\d{1,3}(\.\d{3})+$/.test(limpo) ? limpo.replace(/\./g, "") : limpo);
 }

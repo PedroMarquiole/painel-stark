@@ -42,7 +42,7 @@ export async function moverNegocio(id: string, etapa: Etapa, ordem: number, moti
       etapa, ordem,
       motivo_perda: etapa === "perdido" ? (motivo ?? null) : null,
       motivo_perda_detalhe: etapa === "perdido" ? (detalhe ?? null) : null,
-    }).eq("id", id).select("id"), ["/funil", "/"], true);
+    }).eq("id", id).select("id"), ["/funil", "/", "/relatorios"], true);
 }
 
 /**
@@ -52,18 +52,30 @@ export async function moverNegocio(id: string, etapa: Etapa, ordem: number, moti
  */
 export async function desfazerMovimento(antes: NegocioCard) {
   return executar(async (sb) => {
+    // O registro "Etapa: A → B" do movimento e o "B → A" do desfazer não devem ficar no histórico
+    // (nem confundir o relatório de conversão, que lê de qual etapa o negócio foi perdido).
+    const { data: mov } = await sb.from("atividades").select("ocorreu_em").eq("negocio_id", antes.id).eq("tipo", "mudanca_etapa")
+      .order("ocorreu_em", { ascending: false }).limit(1).maybeSingle();
     const r = await sb.from("negocios").update({
       etapa: antes.etapa, ordem: antes.ordem, motivo_perda: antes.motivo_perda, motivo_perda_detalhe: antes.motivo_perda_detalhe,
     }).eq("id", antes.id).select("id");
     if (r.error || !r.data?.length) return r;
-    return sb.from("negocios").update({
+    const r2 = await sb.from("negocios").update({
       etapa_desde: antes.etapa_desde, ganho_em: antes.ganho_em, perdido_em: antes.perdido_em, probabilidade: antes.probabilidade,
     }).eq("id", antes.id).select("id");
-  }, ["/funil", "/"], true);
+    if (!r2.error && mov) await sb.from("atividades").delete().eq("negocio_id", antes.id).eq("tipo", "mudanca_etapa").gte("ocorreu_em", mov.ocorreu_em);
+    return r2;
+  }, ["/funil", "/", "/relatorios"], true);
 }
 
 export async function atualizarNegocio(id: string, campos: { titulo?: string; valor_estimado?: number | null; probabilidade?: number; previsao_fechamento?: string | null; responsavel_id?: string | null }) {
-  return executar((sb) => sb.from("negocios").update(campos).eq("id", id).select("id"), ["/funil"], true);
+  return executar(async (sb) => {
+    const r = await sb.from("negocios").update(campos).eq("id", id).select("id");
+    if (r.error || !r.data?.length || !("responsavel_id" in campos)) return r;
+    // Quem cuida do negócio cuida dos pedidos em aberto dele (caixa, "Só os meus" e avisos de prazo)
+    const l = await sb.from("leads").update({ responsavel_id: campos.responsavel_id ?? null }).eq("negocio_id", id).in("status", ["novo", "em_atendimento"]).select("id");
+    return l.error ? l : r;
+  }, ["/funil", "/leads", "/"], true);
 }
 
 export async function atualizarContato(id: string, campos: { nome?: string; email?: string | null; whatsapp?: string | null; cargo?: string | null; opt_out_email?: boolean; opt_out_whatsapp?: boolean }) {
