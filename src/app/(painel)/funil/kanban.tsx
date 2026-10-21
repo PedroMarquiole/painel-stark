@@ -554,7 +554,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
             </dd>
             <dt className="text-fg-muted">Valor estimado</dt>
             <dd>
-              <InlineField mono disabled={somenteLeitura} placeholder="Informar valor" exibir={(v) => formatBRL(Number(v))}
+              <InlineField mono disabled={somenteLeitura} placeholder="Informar valor" exibir={(v) => formatBRL(lerValor(v) ?? 0)}
                 value={selecionado.valor_estimado ? String(selecionado.valor_estimado).replace(".", ",") : ""} onSave={async (v) => {
                 const valor = lerValor(v);
                 if (valor !== null && Number.isNaN(valor)) { toast.error("Valor inválido"); throw 0; }
@@ -609,7 +609,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
                   const v = e.target.value || null;
                   const antes = selecionado.previsao_fechamento;
                   if (v === (antes ?? null)) return;
-                  if (v && v < "2000-01-01") { e.target.value = antes ?? ""; return void toast.error("Data inválida"); }
+                  if (v && (!/^\d{4}-\d{2}-\d{2}$/.test(v) || v < "2000-01-01")) { e.target.value = antes ?? ""; return void toast.error("Data inválida"); }
                   setNegocios((xs) => xs.map((n) => (n.id === selecionado.id ? { ...n, previsao_fechamento: v } : n)));
                   const r = await chamar(atualizarNegocio(selecionado.id, { previsao_fechamento: v }));
                   if (!r.ok) {
