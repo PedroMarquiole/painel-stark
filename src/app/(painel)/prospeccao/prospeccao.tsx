@@ -284,7 +284,7 @@ function Hoje({ itens, hoje, totalRitmo, modelos, indicadores, config, podeAgir,
             {config.ritmo.map((d, i) => (
               <React.Fragment key={i}>
                 <span className="rounded-full bg-bloco-inset px-2.5 py-1">{i + 1}º contato</span>
-                <span className="text-fg-subtle">+{d} dia{d > 1 ? "s" : ""} útil{d > 1 ? "eis" : ""}</span>
+                <span className="text-fg-subtle">+{d} {d > 1 ? "dias úteis" : "dia útil"}</span>
               </React.Fragment>
             ))}
             <span className="rounded-full bg-bloco-inset px-2.5 py-1">{config.ritmo.length + 1}º contato</span>

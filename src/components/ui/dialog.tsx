@@ -16,6 +16,7 @@ export function Dialog({
       <D.Portal>
         <D.Overlay className="fixed inset-0 z-40 bg-canvas/60 backdrop-blur-[2px] data-[state=open]:animate-[fade_150ms_ease-out]" />
         <D.Content
+          onInteractOutside={noAviso}
           className={cn(
             "fixed left-1/2 top-[12vh] z-50 flex max-h-[80vh] w-[calc(100%-32px)] max-w-lg -translate-x-1/2 flex-col rounded-2xl bg-bloco shadow-pop outline-none data-[state=open]:animate-enter",
             className,
@@ -45,3 +46,8 @@ export const Select = ({ className, ...p }: React.SelectHTMLAttributes<HTMLSelec
     {...p}
   />
 );
+
+/** Clicar num aviso (ex.: Desfazer) não fecha o painel aberto. */
+const noAviso = (e: Event) => {
+  if ((e.target as Element | null)?.closest?.("[data-sonner-toaster]")) e.preventDefault();
+};

@@ -106,6 +106,27 @@ Checklist extra:
 - [ ] Funil: abrir/recolher Ganho e Perdido; arrastar um card para Ganho recolhido; trocar para Lista e ordenar por Valor
 - [ ] Ajustar a chance de fechar de um negócio e mover o card: a chance ajustada continua
 
+## Prospecção (21/10)
+
+Área separada do Funil para ir atrás de empresas (menu **Prospecção**, atalho `G P`). Banco: migração `0014_prospeccao` (já aplicada no Supabase).
+
+- **Hoje:** quem abordar hoje (atrasados primeiro, depois quem respondeu), com link direto para LinkedIn/WhatsApp/e-mail/Instagram e "Registrar".
+- **Ficha:** mensagem sugerida pelo modelo do canal e do nº do contato (copiar ou abrir o WhatsApp/e-mail com o texto), registro do contato, histórico, dados editáveis e origem (LGPD).
+- **Ritmo:** 1º contato → 3 dias úteis → 2º → 4 dias úteis → 3º; sem resposta no 3º vai para Encerrados (dá para reabrir). Ritmo e meta semanal ficam em Ajustes (admin).
+- **Pipeline e Lista:** arrastar entre etapas com "Desfazer"; soltar em Interessado abre a ficha para criar o negócio.
+- **Tem interesse:** cria contato, empresa e negócio em Em triagem no Funil, com o histórico.
+- **Importar planilha:** .xlsx/.csv ou colar do Excel; liga as colunas pelo nome, confere antes (repetidos, já clientes, "não abordar", sem contato) e distribui N por dia útil entre vocês dois.
+- **Nada é enviado sozinho:** o painel sugere a mensagem e abre o canal; quem envia é você.
+
+Fica para a Fase 2 (precisa de você: contas/chaves): envio automático por WhatsApp/e-mail, IA escrevendo mensagens, busca de empresas no Google Maps/LinkedIn.
+
+Checklist extra:
+- [ ] Prospecção › Hoje: "Registrar" num contato → "Mandei, sem resposta" → aviso com a data do próximo contato
+- [ ] Ficha: "Tem interesse: criar negócio" → aparece em Em triagem no Funil
+- [ ] Importar uma planilha pequena e conferir os números antes de importar
+
+Capturas em `docs/prospeccao/`.
+
 ## Limitações conhecidas
 
 - **WhatsApp**: não há provedor contratado; a interface está pronta (`WHATSAPP_PROVIDER`), e a ficha tem "Registrar contato" para respostas feitas pelo celular.

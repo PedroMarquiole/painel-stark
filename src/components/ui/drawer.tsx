@@ -28,6 +28,7 @@ export function Drawer({
       <D.Portal>
         <D.Overlay className="fixed inset-0 z-40 bg-canvas/40 data-[state=open]:animate-[fade_200ms_ease-out]" />
         <D.Content
+          onInteractOutside={noAviso}
           style={{ maxWidth: width }}
           tabIndex={-1}
           // Foca o painel, não o primeiro botão: Enter/atalhos não disparam ações sem querer
@@ -66,3 +67,8 @@ export function Drawer({
     </D.Root>
   );
 }
+
+/** Clicar num aviso (ex.: Desfazer) não fecha o painel aberto. */
+const noAviso = (e: Event) => {
+  if ((e.target as Element | null)?.closest?.("[data-sonner-toaster]")) e.preventDefault();
+};
