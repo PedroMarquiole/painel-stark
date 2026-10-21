@@ -27,11 +27,14 @@ export function Busca({ aberto, setAberto, novoLead }: { aberto: boolean; setAbe
   React.useEffect(() => {
     if (termo.trim().length < 2) return setRes([]);
     setCarregando(true);
+    let vivo = true; // resposta atrasada de um termo antigo não sobrescreve a do termo atual
     const t = setTimeout(async () => {
-      setRes(await buscarGlobal(termo));
+      const r = await buscarGlobal(termo).catch(() => []);
+      if (!vivo) return;
+      setRes(r);
       setCarregando(false);
     }, 180);
-    return () => clearTimeout(t);
+    return () => { vivo = false; clearTimeout(t); };
   }, [termo]);
 
   const ir = (href: string) => {
@@ -82,7 +85,7 @@ export function Busca({ aberto, setAberto, novoLead }: { aberto: boolean; setAbe
                 <Command.Group heading="Resultados" className="mb-1 [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-fg-subtle">
                   {res.map((r) => (
                     <Command.Item key={`${r.tipo}-${r.id}`} value={`${r.tipo}-${r.id}`} onSelect={() => ir(r.href)} className={item}>
-                      {r.tipo === "contato" ? <User /> : r.tipo === "negocio" ? <Columns3 /> : <Inbox />}
+                      {r.tipo === "contato" ? <User /> : r.tipo === "negocio" ? <Columns3 /> : r.tipo === "prospect" ? <Crosshair /> : <Inbox />}
                       <span className="truncate text-fg">{r.titulo}</span>
                       <span className="truncate text-xs text-fg-subtle">{r.subtitulo}</span>
                     </Command.Item>

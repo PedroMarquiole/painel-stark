@@ -225,17 +225,17 @@ export async function buscar(qBruto: string): Promise<ResultadoBusca[]> {
   if (OFFLINE) return fx.buscar(q);
   const sb = await supabaseServidor();
   const num = Number(q.replace(/^#/, ""));
-  const [contatos, negocios, porProtocolo] = await Promise.all([
-    sb.from("contatos").select("id, nome, email, empresa:empresas(nome)").or(`nome.ilike.%${q}%,email.ilike.%${q}%`).limit(6),
-    sb.from("negocios").select("id, titulo, etapa, contato_id").ilike("titulo", `%${q}%`).limit(4),
+  const [achados, porProtocolo] = await Promise.all([
+    // sem diferença de acento; também por empresa e telefone (migração 0015)
+    sb.rpc("buscar_painel" as never, { p_termo: q } as never) as unknown as Promise<{ data: { tipo: "contato" | "negocio" | "prospect"; id: string; titulo: string; subtitulo: string }[] | null }>,
     Number.isInteger(num) && num > 0
       ? sb.from("leads").select("id, protocolo, nome_informado").eq("protocolo", num).limit(1)
       : Promise.resolve({ data: [] as { id: string; protocolo: number; nome_informado: string }[] }),
   ]);
+  const HREF = { contato: (id: string) => `/clientes/${id}`, negocio: (id: string) => `/funil?id=${id}`, prospect: (id: string) => `/prospeccao?id=${id}` };
   return [
     ...(porProtocolo.data ?? []).map((l) => ({ tipo: "lead" as const, id: l.id, titulo: `#${String(l.protocolo).padStart(4, "0")} · ${l.nome_informado}`, subtitulo: "Pedido", href: `/leads?id=${l.id}` })),
-    ...(contatos.data ?? []).map((c) => ({ tipo: "contato" as const, id: c.id, titulo: c.nome, subtitulo: [(c.empresa as unknown as { nome: string } | null)?.nome, c.email].filter(Boolean).join(" · "), href: `/clientes/${c.id}` })),
-    ...(negocios.data ?? []).map((n) => ({ tipo: "negocio" as const, id: n.id, titulo: n.titulo, subtitulo: "Negócio", href: `/funil?id=${n.id}` })),
+    ...(achados.data ?? []).map((r) => ({ ...r, subtitulo: r.subtitulo ?? "", href: HREF[r.tipo](r.id) })),
   ];
 }
 
