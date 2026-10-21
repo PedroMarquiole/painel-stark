@@ -16,6 +16,9 @@ Aplicado em 20/10/2026 pelo conector do Supabase, na ordem:
 | `painel_0011_resposta_move_funil` | `20261021000011_resposta_move_funil.sql` | 1ª resposta ao cliente move o negócio de Novo para Em triagem (e corrige quem já tinha sido respondido) |
 | `painel_0012_probabilidade_manual` | `20261021000012_probabilidade_manual.sql` | Mover o card não apaga a probabilidade ajustada à mão |
 | `painel_0013_vocabulario_prazo` | `20261021000013_vocabulario_prazo.sql` | "Prazo" em vez de "SLA" nos alertas e nomes; negócio ganho/perdido não gera alerta de prazo |
+| `painel_0014a`…`painel_0014e` | `20261021000014_prospeccao.sql` | Prospecção: tabelas, regras de contato, importação, indicadores, aviso diário |
+| `painel_0015_busca_sem_acento` | `20261021000015_busca_sem_acento.sql` | Busca ⌘K sem diferença de acento, por empresa, telefone e prospecção |
+| `painel_0016a`…`painel_0016c` | `20261021000016_prospeccao_ajustes.sql` | Prospecção: contato reabre encerrado, desfazer exato, % de resposta |
 
 Conferido depois da 0010: funções novas no lugar, `registrar_lead` só para `service_role`, fila de envio vazia; a `novo-pedido` publicada recusa serviço inválido (400) e nome vazio (400, vindo do banco), e a `outbox-sender` recusa chamada sem segredo (401).
 
@@ -39,7 +42,7 @@ Estes dois trechos ficam para o admin rodar em Dashboard → SQL Editor:
 
 ## Avisos do Security Advisor que ficaram
 
-- *Signed-in users can execute SECURITY DEFINER*: `criar_lead_manual`, `responder_lead`, `is_equipe`, `papel_atual`, `tem_papel`. Intencional: são chamadas pelo painel e conferem o papel por dentro.
+- *Signed-in users can execute SECURITY DEFINER*: `criar_lead_manual`, `responder_lead`, `is_equipe`, `papel_atual`, `tem_papel` e as funções da prospecção. Intencional: são chamadas pelo painel e conferem o papel por dentro.
 
 - `pg_net` no schema `public`: mover exige remover e reinstalar a extensão (Database → Extensions).
 - *Leaked password protection*: ligar em Authentication → Settings → Password security.
