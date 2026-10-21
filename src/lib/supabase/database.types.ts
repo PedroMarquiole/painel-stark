@@ -1564,6 +1564,230 @@ export type Database = {
           },
         ]
       }
+      prospeccao_listas: {
+        Row: {
+          created_at: string
+          criada_por: string | null
+          id: string
+          nome: string
+          origem: string
+        }
+        Insert: {
+          created_at?: string
+          criada_por?: string | null
+          id?: string
+          nome: string
+          origem: string
+        }
+        Update: {
+          created_at?: string
+          criada_por?: string | null
+          id?: string
+          nome?: string
+          origem?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospeccao_listas_criada_por_fkey"
+            columns: ["criada_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prospeccao_modelos: {
+        Row: {
+          canal: string
+          texto: string
+          toque: number
+          updated_at: string
+        }
+        Insert: {
+          canal: string
+          texto: string
+          toque: number
+          updated_at?: string
+        }
+        Update: {
+          canal?: string
+          texto?: string
+          toque?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      prospeccao_toques: {
+        Row: {
+          anotacao: string | null
+          autor_id: string | null
+          canal: string | null
+          id: string
+          ocorreu_em: string
+          prospect_id: string
+          resultado: string
+        }
+        Insert: {
+          anotacao?: string | null
+          autor_id?: string | null
+          canal?: string | null
+          id?: string
+          ocorreu_em?: string
+          prospect_id: string
+          resultado: string
+        }
+        Update: {
+          anotacao?: string | null
+          autor_id?: string | null
+          canal?: string | null
+          id?: string
+          ocorreu_em?: string
+          prospect_id?: string
+          resultado?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospeccao_toques_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospeccao_toques_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prospects: {
+        Row: {
+          canal: string
+          cargo: string | null
+          cidade: string | null
+          contato_id: string | null
+          created_at: string
+          criado_por: string | null
+          email: string | null
+          empresa: string
+          encerrado_em: string | null
+          id: string
+          instagram: string | null
+          linkedin: string | null
+          lista_id: string | null
+          motivo_encerramento: string | null
+          negocio_id: string | null
+          origem: string
+          pessoa: string | null
+          porque: string | null
+          proximo_contato: string | null
+          responsavel_id: string | null
+          segmento: string | null
+          site: string | null
+          situacao: string
+          toques: number
+          ultimo_contato_em: string | null
+          updated_at: string
+          whatsapp: string | null
+        }
+        Insert: {
+          canal?: string
+          cargo?: string | null
+          cidade?: string | null
+          contato_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          email?: string | null
+          empresa: string
+          encerrado_em?: string | null
+          id?: string
+          instagram?: string | null
+          linkedin?: string | null
+          lista_id?: string | null
+          motivo_encerramento?: string | null
+          negocio_id?: string | null
+          origem?: string
+          pessoa?: string | null
+          porque?: string | null
+          proximo_contato?: string | null
+          responsavel_id?: string | null
+          segmento?: string | null
+          site?: string | null
+          situacao?: string
+          toques?: number
+          ultimo_contato_em?: string | null
+          updated_at?: string
+          whatsapp?: string | null
+        }
+        Update: {
+          canal?: string
+          cargo?: string | null
+          cidade?: string | null
+          contato_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          email?: string | null
+          empresa?: string
+          encerrado_em?: string | null
+          id?: string
+          instagram?: string | null
+          linkedin?: string | null
+          lista_id?: string | null
+          motivo_encerramento?: string | null
+          negocio_id?: string | null
+          origem?: string
+          pessoa?: string | null
+          porque?: string | null
+          proximo_contato?: string | null
+          responsavel_id?: string | null
+          segmento?: string | null
+          site?: string | null
+          situacao?: string
+          toques?: number
+          ultimo_contato_em?: string | null
+          updated_at?: string
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospects_contato_id_fkey"
+            columns: ["contato_id"]
+            isOneToOne: false
+            referencedRelation: "contatos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospects_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospects_lista_id_fkey"
+            columns: ["lista_id"]
+            isOneToOne: false
+            referencedRelation: "prospeccao_listas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospects_negocio_id_fkey"
+            columns: ["negocio_id"]
+            isOneToOne: false
+            referencedRelation: "negocios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospects_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_subscriptions: {
         Row: {
           auth: string
@@ -1843,6 +2067,7 @@ export type Database = {
       }
     }
     Functions: {
+      avisar_prospeccao_hoje: { Args: never; Returns: number }
       concluir_execucao: {
         Args: { p_id: string; p_resultado?: Json; p_status?: string }
         Returns: undefined
@@ -1858,6 +2083,15 @@ export type Database = {
         Returns: undefined
       }
       conferir_segredo_cron: { Args: { p_segredo: string }; Returns: boolean }
+      converter_prospect: {
+        Args: {
+          p_email?: string
+          p_prospect: string
+          p_servicos?: Database["public"]["Enums"]["servico"][]
+          p_whatsapp?: string
+        }
+        Returns: Json
+      }
       criar_lead_manual: { Args: { p: Json }; Returns: Json }
       disparar_outbox: { Args: never; Returns: undefined }
       enfileirar_mensagem: {
@@ -1881,9 +2115,21 @@ export type Database = {
       }
       formatar_protocolo: { Args: { n: number }; Returns: string }
       gerar_feriados: { Args: { ano: number }; Returns: undefined }
+      hoje_sp: { Args: never; Returns: string }
       ids_equipe: {
         Args: { p_papeis: Database["public"]["Enums"]["papel_equipe"][] }
         Returns: string[]
+      }
+      importar_prospects: {
+        Args: {
+          p_linhas: Json
+          p_lista: string
+          p_origem: string
+          p_por_dia?: number
+          p_responsaveis?: string[]
+          p_simular?: boolean
+        }
+        Returns: Json
       }
       iniciar_execucao: {
         Args: {
@@ -1896,6 +2142,10 @@ export type Database = {
         Returns: string
       }
       is_equipe: { Args: never; Returns: boolean }
+      mudar_situacao_prospect: {
+        Args: { p_motivo?: string; p_prospect: string; p_situacao: string }
+        Returns: Json
+      }
       normalizar_whatsapp: { Args: { t: string }; Returns: string }
       notificar: {
         Args: {
@@ -1913,8 +2163,19 @@ export type Database = {
         Returns: Database["public"]["Enums"]["papel_equipe"]
       }
       pascoa: { Args: { ano: number }; Returns: string }
+      prospeccao_indicadores: { Args: never; Returns: Json }
       proximo_horario_comercial: { Args: { ts?: string }; Returns: string }
       registrar_lead: { Args: { p: Json }; Returns: Json }
+      registrar_toque_prospect: {
+        Args: {
+          p_anotacao?: string
+          p_canal: string
+          p_prospect: string
+          p_proximo?: string
+          p_resultado: string
+        }
+        Returns: Json
+      }
       render_template: { Args: { texto: string; vars: Json }; Returns: string }
       reservar_mensagens: {
         Args: { p_limite?: number }
@@ -1963,6 +2224,10 @@ export type Database = {
       }
       sla_deadline: {
         Args: { chegada: string; horas_uteis?: number }
+        Returns: string
+      }
+      somar_dias_uteis: {
+        Args: { p_dia: string; p_n: number }
         Returns: string
       }
       tem_papel: {

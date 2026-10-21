@@ -3,7 +3,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as M from "@radix-ui/react-dropdown-menu";
-import { BarChart3, Bot, Columns3, Home, Inbox, LayoutTemplate, LogOut, Menu, Plus, Search } from "lucide-react";
+import { BarChart3, Bot, Columns3, Crosshair, Home, Inbox, LayoutTemplate, LogOut, Menu, MoreHorizontal, Plus, Search } from "lucide-react";
 import { AppearanceControls } from "@/components/layout/appearance-controls";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -19,10 +19,13 @@ import { PainelCtx } from "./contexto";
 import { Notificacoes } from "./notificacoes";
 import { NovoLead } from "./novo-lead";
 
+/** Barra de baixo do celular: 4 telas do dia a dia + "Mais" (abre a gaveta). */
+const NAV_CELULAR = ["/", "/leads", "/funil", "/prospeccao"];
 const NAV = [
   { href: "/", rotulo: "Início", Icone: Home, tecla: "H" },
   { href: "/leads", rotulo: "Caixa de entrada", Icone: Inbox, tecla: "I" },
   { href: "/funil", rotulo: "Funil", Icone: Columns3, tecla: "F" },
+  { href: "/prospeccao", rotulo: "Prospecção", Icone: Crosshair, tecla: "P" },
   { href: "/relatorios", rotulo: "Relatórios", Icone: BarChart3, tecla: "R" },
   { href: "/automacoes", rotulo: "Automações", Icone: Bot, tecla: "A" },
 ];
@@ -226,7 +229,7 @@ export function Shell({
 
         {/* Navegação de baixo (celular) */}
         <nav aria-label="Atalhos" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-surface/95 backdrop-blur lg:hidden">
-          {NAV.map(({ href, rotulo, Icone }) => (
+          {NAV.filter((n) => NAV_CELULAR.includes(n.href)).map(({ href, rotulo, Icone }) => (
             <Link key={href} href={href} aria-current={ativo(href) ? "page" : undefined}
               className={cn("relative flex flex-col items-center gap-0.5 py-2 text-[11px] text-fg-muted [&_svg]:size-5", ativo(href) && "text-accent")}>
               <Icone aria-hidden />
@@ -238,6 +241,11 @@ export function Shell({
               )}
             </Link>
           ))}
+          <button type="button" onClick={() => setMenuMobile(true)} aria-label="Mais telas"
+            className={cn("flex flex-col items-center gap-0.5 py-2 text-[11px] text-fg-muted [&_svg]:size-5", NAV.some((n) => !NAV_CELULAR.includes(n.href) && ativo(n.href)) && "text-accent")}>
+            <MoreHorizontal aria-hidden />
+            Mais
+          </button>
         </nav>
       </div>
 

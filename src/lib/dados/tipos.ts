@@ -1,4 +1,4 @@
-import type { Etapa, MotivoPerda, Papel, Servico, Situacao } from "@/lib/rotulos";
+import type { CanalProspect, Etapa, MotivoPerda, Papel, Servico, Situacao, SituacaoProspect } from "@/lib/rotulos";
 
 export interface Perfil {
   id: string;
@@ -161,3 +161,57 @@ export interface Resultado<T = undefined> {
   erro?: string;
   dados?: T;
 }
+
+// ─── Prospecção ─────────────────────────────────────────────────────────────
+export interface Prospect {
+  id: string;
+  empresa: string;
+  pessoa: string | null;
+  cargo: string | null;
+  email: string | null;
+  whatsapp: string | null;
+  linkedin: string | null;
+  instagram: string | null;
+  site: string | null;
+  cidade: string | null;
+  segmento: string | null;
+  porque: string | null;
+  canal: CanalProspect;
+  origem: string;
+  lista_id: string | null;
+  lista_nome: string | null;
+  responsavel_id: string | null;
+  situacao: SituacaoProspect;
+  toques: number;
+  proximo_contato: string | null; // AAAA-MM-DD
+  ultimo_contato_em: string | null;
+  encerrado_em: string | null;
+  motivo_encerramento: string | null;
+  negocio_id: string | null;
+  created_at: string;
+  ultima_resposta: string | null; // anotação do último "respondeu"
+}
+
+export interface ToqueProspect {
+  id: string;
+  canal: CanalProspect | null;
+  resultado: "enviada" | "respondeu" | "depois" | "sem_interesse" | "interessado" | "nao_abordar" | "reaberto" | "nota" | "importado";
+  anotacao: string | null;
+  autor_nome: string | null;
+  ocorreu_em: string;
+}
+
+export interface ProspeccaoIndicadores {
+  hoje: number;
+  atrasados: number;
+  a_abordar: number;
+  contatos_semana: number;
+  meta_semana: number | null;
+  resposta_pct: number | null;
+  por_canal: { canal: CanalProspect; n: number; pct: number | null }[];
+  viraram_negocio: number;
+  valor_no_funil: number;
+}
+
+export interface ModeloProspeccao { canal: CanalProspect; toque: 1 | 2 | 3; texto: string }
+export interface ConfigProspeccao { ritmo: number[]; meta_semana: number | null }

@@ -5,7 +5,8 @@ import { supabaseServidor } from "@/lib/supabase/server";
 import type { Etapa, Servico } from "@/lib/rotulos";
 import * as fx from "./fixtures";
 import type {
-  Atividade, Automacao, EtapaConfig, Execucao, Indicadores, LeadDetalhe, LeadInbox, NegocioCard, Notificacao, Perfil, ResultadoBusca,
+  Atividade, Automacao, ConfigProspeccao, EtapaConfig, Execucao, Indicadores, LeadDetalhe, LeadInbox, ModeloProspeccao, NegocioCard,
+  Notificacao, Perfil, ProspeccaoIndicadores, Prospect, ResultadoBusca, ToqueProspect,
 } from "./tipos";
 
 const diasAtras = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
@@ -244,4 +245,73 @@ export async function listarFiltros(escopo: string): Promise<FiltroSalvo[]> {
   const sb = await supabaseServidor();
   const { data } = await sb.from("filtros_salvos").select("id, nome, filtros, compartilhado, profile_id").eq("escopo", escopo).order("ordem").order("created_at");
   return (data ?? []) as FiltroSalvo[];
+}
+
+// ─── Prospecção ─────────────────────────────────────────────────────────────
+const SELECT_PROSPECT =
+  "id, empresa, pessoa, cargo, email, whatsapp, linkedin, instagram, site, cidade, segmento, porque, canal, origem, lista_id, responsavel_id, situacao, toques, proximo_contato, ultimo_contato_em, encerrado_em, motivo_encerramento, negocio_id, created_at, lista:prospeccao_listas(nome)";
+type LinhaProspect = Omit<Prospect, "lista_nome" | "ultima_resposta"> & { lista: { nome: string } | null };
+
+async function respostasRecentes(ids: string[]) {
+  if (!ids.length) return new Map<string, string>();
+  const sb = await supabaseServidor();
+  const { data } = await sb.from("prospeccao_toques").select("prospect_id, anotacao, ocorreu_em")
+    .in("prospect_id", ids).in("resultado", ["respondeu", "depois"]).order("ocorreu_em", { ascending: false });
+  const m = new Map<string, string>();
+  for (const t of data ?? []) if (t.anotacao && !m.has(t.prospect_id)) m.set(t.prospect_id, t.anotacao);
+  return m;
+}
+
+export async function listarProspects(): Promise<Prospect[]> {
+  if (OFFLINE) return fx.prospects();
+  const sb = await supabaseServidor();
+  const { data, error } = await sb.from("prospects").select(SELECT_PROSPECT).order("created_at", { ascending: true }).limit(3000);
+  if (error) throw new Error(error.message);
+  const linhas = (data ?? []) as unknown as LinhaProspect[];
+  const resp = await respostasRecentes(linhas.filter((p) => p.situacao === "respondeu").map((p) => p.id));
+  return linhas.map(({ lista, ...p }) => ({ ...p, lista_nome: lista?.nome ?? null, ultima_resposta: resp.get(p.id) ?? null }));
+}
+
+export async function buscarProspect(id: string): Promise<Prospect | null> {
+  if (OFFLINE) return fx.prospects().find((p) => p.id === id) ?? null;
+  const sb = await supabaseServidor();
+  const { data } = await sb.from("prospects").select(SELECT_PROSPECT).eq("id", id).maybeSingle();
+  if (!data) return null;
+  const { lista, ...p } = data as unknown as LinhaProspect;
+  const resp = await respostasRecentes([p.id]);
+  return { ...p, lista_nome: lista?.nome ?? null, ultima_resposta: resp.get(p.id) ?? null };
+}
+
+export async function toquesDoProspect(id: string): Promise<ToqueProspect[]> {
+  if (OFFLINE) return fx.toquesProspect(id);
+  const sb = await supabaseServidor();
+  const { data } = await sb.from("prospeccao_toques").select("id, canal, resultado, anotacao, ocorreu_em, autor:profiles(nome)")
+    .eq("prospect_id", id).order("ocorreu_em", { ascending: false }).limit(100);
+  return (data ?? []).map(({ autor, ...t }) => ({ ...t, autor_nome: (autor as { nome: string } | null)?.nome ?? null }) as ToqueProspect);
+}
+
+export async function indicadoresProspeccao(): Promise<ProspeccaoIndicadores> {
+  if (OFFLINE) return fx.indicadoresProspeccao();
+  const sb = await supabaseServidor();
+  const { data, error } = await sb.rpc("prospeccao_indicadores");
+  if (error) throw new Error(error.message);
+  return data as unknown as ProspeccaoIndicadores;
+}
+
+export async function modelosProspeccao(): Promise<ModeloProspeccao[]> {
+  if (OFFLINE) return fx.modelosProspeccao;
+  const sb = await supabaseServidor();
+  const { data } = await sb.from("prospeccao_modelos").select("canal, toque, texto").order("canal").order("toque");
+  return (data ?? []) as ModeloProspeccao[];
+}
+
+export async function configProspeccao(): Promise<ConfigProspeccao> {
+  if (OFFLINE) return fx.configProspeccao;
+  const sb = await supabaseServidor();
+  const { data } = await sb.from("app_config").select("chave, valor").in("chave", ["prospeccao_ritmo", "prospeccao_meta_semana"]);
+  const v = Object.fromEntries((data ?? []).map((x) => [x.chave, x.valor]));
+  return {
+    ritmo: Array.isArray(v.prospeccao_ritmo) ? (v.prospeccao_ritmo as number[]) : [3, 4],
+    meta_semana: typeof v.prospeccao_meta_semana === "number" ? v.prospeccao_meta_semana : null,
+  };
 }
