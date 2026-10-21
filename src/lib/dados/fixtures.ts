@@ -1,17 +1,20 @@
 // Dados fictícios do modo offline (PAINEL_OFFLINE=1, só em `next dev`). Nunca usados em produção.
-import type { Etapa, MotivoPerda, Servico, Situacao } from "@/lib/rotulos";
-import type { Automacao, EtapaConfig, Execucao, Indicadores, LeadDetalhe, LeadInbox, NegocioCard, Notificacao, Perfil, ResultadoBusca } from "./tipos";
+import type { CanalProspect, Etapa, MotivoPerda, Servico, Situacao, SituacaoProspect } from "@/lib/rotulos";
+import type {
+  Automacao, ConfigProspeccao, EtapaConfig, Execucao, Indicadores, LeadDetalhe, LeadInbox, ModeloProspeccao, NegocioCard, Notificacao, Perfil,
+  ProspeccaoIndicadores, Prospect, ResultadoBusca, ToqueProspect,
+} from "./tipos";
 import type { Ficha } from "./consultas";
 
 const H = 3_600_000;
 const D = 24 * H;
 const iso = (ms: number) => new Date(ms).toISOString();
 
-export const perfil: Perfil = { id: "u-ana", nome: "Ana Beatriz", email: "ana@stark.dev.br", papel: "admin", avatar_url: null };
+// A equipe de hoje: você e seu sócio
+export const perfil: Perfil = { id: "u-pedro", nome: "Pedro Marquiole", email: "pedro@stark.dev.br", papel: "admin", avatar_url: null };
 export const equipe: Perfil[] = [
   perfil,
-  { id: "u-rafa", nome: "Rafael Costa", email: "rafa@stark.dev.br", papel: "comercial", avatar_url: null },
-  { id: "u-dev", nome: "Lucas Prado", email: "lucas@stark.dev.br", papel: "projetos", avatar_url: null },
+  { id: "u-socio", nome: "Sócio Stark", email: "socio@stark.dev.br", papel: "comercial", avatar_url: null },
 ];
 
 type P = [string, string, Servico[], Situacao, string, string, Etapa, number, number | null, number | null, MotivoPerda | null];
@@ -124,9 +127,9 @@ export function detalhe(id: string): LeadDetalhe | null {
     negocio: { id: n.id, titulo: n.titulo, etapa: n.etapa, valor_estimado: n.valor_estimado },
     outros_pedidos: i === 0 ? [{ id: "lead-x", protocolo: 17, created_at: iso(t0 - 80 * D), dor: "Site institucional simples para a clínica." }] : [],
     atividades: [
-      ...(l.primeira_resposta_em ? [{ id: "a3", tipo: "mensagem", canal: "whatsapp", direcao: "saida", automatica: false, titulo: "Primeiro contato", corpo: `Oi, ${l.nome.split(" ")[0]}! Aqui é da Stark. Podemos marcar 30 minutos para entender melhor?`, ocorreu_em: l.primeira_resposta_em, autor_nome: "Rafael Costa" }] : []),
+      ...(l.primeira_resposta_em ? [{ id: "a3", tipo: "mensagem", canal: "whatsapp", direcao: "saida", automatica: false, titulo: "Primeiro contato", corpo: `Oi, ${l.nome.split(" ")[0]}! Aqui é da Stark. Podemos marcar 30 minutos para entender melhor?`, ocorreu_em: l.primeira_resposta_em, autor_nome: "Sócio Stark" }] : []),
       { id: "a2", tipo: "mensagem", canal: "email", direcao: "saida", automatica: true, titulo: `Recebemos seu pedido #00${l.protocolo} · Stark`, corpo: null, ocorreu_em: iso(t0 + 20_000), autor_nome: null },
-      { id: "a1b", tipo: "atribuicao", canal: "sistema", direcao: "interna", automatica: true, titulo: "Atribuído a Rafael Costa", corpo: null, ocorreu_em: iso(t0 + 2_000), autor_nome: null },
+      { id: "a1b", tipo: "atribuicao", canal: "sistema", direcao: "interna", automatica: true, titulo: "Atribuído a Sócio Stark", corpo: null, ocorreu_em: iso(t0 + 2_000), autor_nome: null },
       { id: "a1", tipo: "lead_recebido", canal: "sistema", direcao: "entrada", automatica: true, titulo: `Pedido #00${l.protocolo} recebido pelo site`, corpo: l.dor, ocorreu_em: l.created_at, autor_nome: null },
     ],
   };
@@ -220,4 +223,83 @@ export function buscar(q: string): ResultadoBusca[] {
     .filter((l) => l.nome.toLowerCase().includes(t) || (l.empresa ?? "").toLowerCase().includes(t) || `#00${l.protocolo}`.includes(t))
     .slice(0, 6)
     .map((l) => ({ tipo: "contato" as const, id: l.contato_id, titulo: l.nome, subtitulo: `${l.empresa} · #00${l.protocolo}`, href: `/clientes/${l.contato_id}` }));
+}
+
+// ─── Prospecção (offline) ────────────────────────────────────────────────────
+type PP = [string, string | null, string | null, CanalProspect, SituacaoProspect, number, number | null, string, string | null, string | null];
+// empresa, pessoa, cargo, canal, situação, toques, dias até o próximo contato (negativo = atrasado), cidade/segmento, resposta, lista
+const PROSPECTS: PP[] = [
+  ["Construtora Albuquerque Lima", "Renata Albuquerque", "Diretora de operações", "linkedin", "acompanhamento", 2, -2, "Jundiaí|Construção civil", null, "Indústrias de Jundiaí"],
+  ["Laticínios Serra Azul", "Marcos Teixeira", "Sócio", "whatsapp", "acompanhamento", 2, -1, "Itatiba|Alimentos", null, null],
+  ["Clínica Odonto Viva", "Paula Rezende", "Proprietária", "email", "respondeu", 1, 0, "Campinas|Saúde", "Me liga quinta à tarde", null],
+  ["Transportes Rota Sul", "Diego Fontana", "Gerente de logística", "linkedin", "acompanhamento", 2, 0, "Jundiaí|Logística", null, "Indústrias de Jundiaí"],
+  ["Padaria Pão da Vila", null, null, "instagram", "a_abordar", 0, 0, "Sorocaba|Alimentos", null, null],
+  ["Escola Pequeno Saber", "Juliana Moraes", "Coordenadora", "whatsapp", "contatado", 1, 0, "Campinas|Educação", null, null],
+  ["Ótica Visão Clara", "Fernanda Luz", null, "whatsapp", "a_abordar", 0, 1, "Campinas|Varejo", null, null],
+  ["Metalúrgica Forte Aço", "Sérgio Lima", "Diretor industrial", "linkedin", "a_abordar", 0, 1, "Jundiaí|Indústria", null, "Indústrias de Jundiaí"],
+  ["Academia Corpo em Forma", null, null, "instagram", "a_abordar", 0, 2, "Sorocaba|Serviços", null, null],
+  ["Contabilidade Nunes", "Carla Nunes", "Sócia", "email", "contatado", 1, 3, "Valinhos|Serviços", null, null],
+  ["Distribuidora Bom Grão", "Felipe Andrade", "Compras", "linkedin", "respondeu", 1, 2, "Louveira|Distribuição", "Manda um material", "Indústrias de Jundiaí"],
+  ["Imobiliária Casa Nova", "Rodrigo Pires", "Sócio", "whatsapp", "interessado", 2, null, "Campinas|Imobiliário", null, null],
+  ["Gráfica Ponto Certo", null, null, "telefone", "sem_interesse", 3, null, "Várzea Paulista|Indústria", null, "Indústrias de Jundiaí"],
+  ["Pet Shop Amigo Fiel", "Bruno Sales", "Dono", "instagram", "nao_abordar", 1, null, "Jundiaí|Varejo", null, null],
+];
+
+export function prospects(): Prospect[] {
+  const hoje = Date.now();
+  const dia = (n: number) => new Date(hoje - 3 * H + n * D).toISOString().slice(0, 10);
+  return PROSPECTS.map(([empresa, pessoa, cargo, canal, situacao, toques, prox, cs, resp, lista], i) => {
+    const [cidade, segmento] = cs.split("|");
+    const slug = empresa.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z]+/g, "");
+    return {
+      id: `prosp-${i}`, empresa, pessoa, cargo,
+      email: canal === "email" ? `${(pessoa ?? "contato").split(" ")[0].toLowerCase()}@${slug}.exemplo` : null,
+      whatsapp: canal === "whatsapp" || canal === "telefone" ? `+55119${String(81000000 + i * 4231).padStart(8, "0")}` : null,
+      linkedin: canal === "linkedin" ? `linkedin.com/in/${(pessoa ?? slug).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-")}` : null,
+      instagram: canal === "instagram" ? `@${slug.slice(0, 16)}` : null,
+      site: `${slug}.exemplo`, cidade, segmento,
+      porque: i === 0 ? "Abriu 3 obras novas este ano; controla medições em planilha (post no LinkedIn)." : null,
+      canal, origem: lista ? "Pesquisa no LinkedIn e sites das empresas" : "Cadastro manual", lista_id: lista ? "lista-1" : null, lista_nome: lista,
+      responsavel_id: equipe[i % 2].id, situacao, toques, proximo_contato: prox == null ? null : dia(prox),
+      ultimo_contato_em: toques ? iso(hoje - (3 + i % 4) * D) : null,
+      encerrado_em: ["interessado", "sem_interesse", "nao_abordar"].includes(situacao) ? iso(hoje - 2 * D) : null,
+      motivo_encerramento: situacao === "sem_interesse" ? "Sem resposta depois de 3 contatos" : situacao === "nao_abordar" ? "Pediu para não ser contatado" : null,
+      negocio_id: situacao === "interessado" ? "neg-3" : null,
+      created_at: iso(hoje - (20 - i) * D), ultima_resposta: resp,
+    };
+  });
+}
+
+export function toquesProspect(id: string): ToqueProspect[] {
+  const p = prospects().find((x) => x.id === id);
+  if (!p) return [];
+  const t0 = Date.parse(p.created_at);
+  const xs: ToqueProspect[] = [{ id: `${id}-t0`, canal: null, resultado: "importado", anotacao: p.lista_nome ? `Entrou pela lista “${p.lista_nome}”` : "Cadastrado no painel", autor_nome: perfil.nome, ocorreu_em: iso(t0) }];
+  for (let k = 0; k < p.toques; k++) xs.push({ id: `${id}-t${k + 1}`, canal: p.canal, resultado: "enviada", anotacao: k === 0 ? "1º contato" : null, autor_nome: equipe[k % 2].nome, ocorreu_em: iso(t0 + (k + 1) * 4 * D) });
+  if (p.ultima_resposta) xs.push({ id: `${id}-r`, canal: p.canal, resultado: "respondeu", anotacao: p.ultima_resposta, autor_nome: perfil.nome, ocorreu_em: iso(Date.now() - D) });
+  return xs.reverse();
+}
+
+export const modelosProspeccao: ModeloProspeccao[] = (["linkedin", "whatsapp", "email", "instagram", "telefone"] as CanalProspect[]).flatMap((canal) =>
+  ([1, 2, 3] as const).map((toque) => ({
+    canal, toque,
+    texto: toque === 1 ? "Oi, {{pessoa}}! Sou {{seu_nome}}, da Stark. A gente cria sistemas sob medida para empresas como a {{empresa}} tirarem processos da planilha.\nFaz sentido uma conversa de 20 minutos?"
+      : toque === 2 ? "Oi, {{pessoa}}, tudo bem? Retomando minha mensagem sobre sistemas sob medida para a {{empresa}}. Tem 20 minutos esta semana?"
+      : "Oi, {{pessoa}}! Passando uma última vez por aqui. Se fizer sentido para a {{empresa}} no futuro, é só chamar.",
+  })));
+
+export const configProspeccao: ConfigProspeccao = { ritmo: [3, 4], meta_semana: 20 };
+
+export function indicadoresProspeccao(): ProspeccaoIndicadores {
+  const xs = prospects();
+  const hoje = new Date(Date.now() - 3 * H).toISOString().slice(0, 10);
+  const ativos = xs.filter((p) => ["a_abordar", "contatado", "acompanhamento", "respondeu"].includes(p.situacao));
+  return {
+    hoje: ativos.filter((p) => p.proximo_contato && p.proximo_contato <= hoje).length,
+    atrasados: ativos.filter((p) => p.proximo_contato && p.proximo_contato < hoje).length,
+    a_abordar: xs.filter((p) => p.situacao === "a_abordar").length,
+    contatos_semana: 11, meta_semana: 20, resposta_pct: 18,
+    por_canal: [{ canal: "whatsapp", n: 13, pct: 31 }, { canal: "linkedin", n: 18, pct: 22 }, { canal: "instagram", n: 7, pct: 14 }, { canal: "email", n: 11, pct: 9 }],
+    viraram_negocio: 1, valor_no_funil: 48000,
+  };
 }

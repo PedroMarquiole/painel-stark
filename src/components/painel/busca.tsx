@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import * as D from "@radix-ui/react-dialog";
 import { useTheme } from "next-themes";
-import { BarChart3, Bot, Columns3, Home, Inbox, LayoutTemplate, Moon, Plus, Search, Sun, User } from "lucide-react";
+import { BarChart3, Bot, Columns3, Crosshair, Home, Inbox, LayoutTemplate, Moon, Plus, Search, Sun, User } from "lucide-react";
 import { Kbd } from "@/components/ui/kbd";
 import { buscarGlobal } from "@/app/(painel)/acoes";
 import { usePainel } from "./contexto";
@@ -46,6 +46,7 @@ export function Busca({ aberto, setAberto, novoLead }: { aberto: boolean; setAbe
     { id: "inicio", rotulo: "Início", Icone: Home, teclas: ["G", "H"], fazer: () => ir("/") },
     { id: "leads", rotulo: "Caixa de entrada", Icone: Inbox, teclas: ["G", "I"], fazer: () => ir("/leads") },
     { id: "funil", rotulo: "Funil", Icone: Columns3, teclas: ["G", "F"], fazer: () => ir("/funil") },
+    { id: "prospeccao", rotulo: "Prospecção", Icone: Crosshair, teclas: ["G", "P"], fazer: () => ir("/prospeccao") },
     { id: "relatorios", rotulo: "Relatórios", Icone: BarChart3, teclas: ["G", "R"], fazer: () => ir("/relatorios") },
     { id: "automacoes", rotulo: "Automações", Icone: Bot, teclas: ["G", "A"], fazer: () => ir("/automacoes") },
     { id: "novo", rotulo: "Novo lead", Icone: Plus, teclas: ["N"], fazer: () => { setAberto(false); novoLead(); } },

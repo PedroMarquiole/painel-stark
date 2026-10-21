@@ -3,7 +3,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Kbd } from "@/components/ui/kbd";
 
 const GRUPOS: [string, [string[], string][]][] = [
-  ["Em qualquer tela", [[["⌘", "K"], "Buscar / comandos"], [["N"], "Novo lead"], [["?"], "Esta lista"], [["G", "H"], "Início"], [["G", "I"], "Caixa de entrada"], [["G", "F"], "Funil"], [["G", "R"], "Relatórios"], [["G", "A"], "Automações"]]],
+  ["Em qualquer tela", [[["⌘", "K"], "Buscar / comandos"], [["N"], "Novo lead"], [["?"], "Esta lista"], [["G", "H"], "Início"], [["G", "I"], "Caixa de entrada"], [["G", "F"], "Funil"], [["G", "P"], "Prospecção"], [["G", "R"], "Relatórios"], [["G", "A"], "Automações"]]],
   ["Caixa de entrada", [[["J"], "Próximo"], [["K"], "Anterior"], [["Enter"], "Abrir"], [["E"], "Responder"], [["D"], "Descartar"], [["/"], "Filtrar a lista"], [["Esc"], "Fechar painel"]]],
   ["Funil", [[["Enter"], "Abrir o negócio"], [["Espaço"], "Pegar / soltar o card"], [["←", "→"], "Mudar de etapa (com o card pego)"], [["Esc"], "Cancelar"]]],
 ];

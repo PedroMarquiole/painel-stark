@@ -70,3 +70,21 @@ export const chaveOrigem = (o?: string | null) => (!o || o === "direto" ? "site"
 export const rotuloOrigem = (o?: string | null) => ORIGENS[chaveOrigem(o)] ?? o ?? ORIGENS.site;
 
 export const PAPEIS: Record<Papel, string> = { admin: "Admin", comercial: "Comercial", projetos: "Projetos/Dev" };
+
+// ─── Prospecção ─────────────────────────────────────────────────────────────
+export type CanalProspect = "linkedin" | "whatsapp" | "email" | "instagram" | "telefone";
+export type SituacaoProspect = "a_abordar" | "contatado" | "acompanhamento" | "respondeu" | "interessado" | "sem_interesse" | "nao_abordar";
+export const CANAIS_PROSPECT: Record<CanalProspect, string> = {
+  linkedin: "LinkedIn", whatsapp: "WhatsApp", email: "E-mail", instagram: "Instagram", telefone: "Ligação",
+};
+/** Em ordem do caminho. As duas últimas são "Encerrados". */
+export const SITUACOES_PROSPECT: { id: SituacaoProspect; rotulo: string; dica: string }[] = [
+  { id: "a_abordar", rotulo: "A abordar", dica: "ainda sem contato" },
+  { id: "contatado", rotulo: "Contatado", dica: "1º contato feito, esperando" },
+  { id: "acompanhamento", rotulo: "Em acompanhamento", dica: "2º ou 3º contato" },
+  { id: "respondeu", rotulo: "Respondeu", dica: "em conversa, ainda sem decisão" },
+  { id: "interessado", rotulo: "Interessado", dica: "virou negócio no Funil" },
+  { id: "sem_interesse", rotulo: "Sem interesse", dica: "encerrado, dá para reabrir" },
+  { id: "nao_abordar", rotulo: "Não abordar mais", dica: "bloqueado, inclusive em importações" },
+];
+export const ROTULO_SITUACAO_PROSPECT = Object.fromEntries(SITUACOES_PROSPECT.map((s) => [s.id, s.rotulo])) as Record<SituacaoProspect, string>;
