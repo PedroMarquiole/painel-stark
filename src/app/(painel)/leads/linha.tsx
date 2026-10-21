@@ -6,17 +6,33 @@ import { HoverCard } from "@/components/ui/hover-card";
 import { SlaBadge } from "@/components/domain/sla-badge";
 import { useNow } from "@/hooks/use-now";
 import { cn, formatProtocolo, formatRelative } from "@/lib/utils";
-import { SERVICOS, SITUACOES, rotuloOrigem } from "@/lib/rotulos";
+import { ROTULO_ETAPA, SERVICOS, SITUACOES, rotuloOrigem } from "@/lib/rotulos";
 import type { LeadInbox } from "@/lib/dados/tipos";
 
 export const GRADE =
   "md:grid md:grid-cols-[60px_minmax(150px,1.2fr)_minmax(130px,1fr)_minmax(180px,2.2fr)_92px_52px_112px_24px] md:items-center md:gap-3";
 
+/**
+ * O que importa agora: sem resposta → o prazo; já respondido → a etapa no funil; arquivado → o desfecho.
+ */
+export function Andamento({ lead }: { lead: LeadInbox }) {
+  if (lead.status === "descartado") return <Badge tone="neutral" className="w-[104px] justify-start">Descartado</Badge>;
+  if (lead.status === "convertido" || lead.etapa === "ganho") return <Badge tone="success" dot className="w-[104px] justify-start">Ganho</Badge>;
+  if (lead.etapa === "perdido") return <Badge tone="danger" dot className="w-[104px] justify-start">Perdido</Badge>;
+  if (!lead.primeira_resposta_em) return <SlaBadge deadline={new Date(lead.sla_vence_em)} />;
+  const etapa = lead.etapa ? ROTULO_ETAPA[lead.etapa] : "Respondido";
+  return (
+    <Badge tone="info" dot className="w-[104px] justify-start" title={`No funil: ${etapa}`}>
+      <span className="truncate">{etapa}</span>
+    </Badge>
+  );
+}
+
 /** Linha da caixa de entrada: tabela no desktop, cartão no celular. */
 export const LinhaLead = React.memo(function LinhaLead({
-  lead, selecionado, novo, responsavel, onAbrir,
+  lead, selecionado, novo, movido = false, responsavel, onAbrir,
 }: {
-  lead: LeadInbox; selecionado: boolean; novo: boolean; responsavel: string | null; onAbrir: () => void;
+  lead: LeadInbox; selecionado: boolean; novo: boolean; movido?: boolean; responsavel: string | null; onAbrir: () => void;
 }) {
   const now = useNow();
   const ref = React.useRef<HTMLDivElement>(null);
@@ -54,6 +70,7 @@ export const LinhaLead = React.memo(function LinhaLead({
           </dl>
         </HoverCard>
         {novo && <Badge tone="accent">novo</Badge>}
+        {movido && <Badge tone="success" title="Respondido. Vai para Em conversa quando você trocar de aba.">respondido</Badge>}
         <span className="num ml-auto text-xs text-fg-subtle md:hidden">{formatProtocolo(lead.protocolo)}</span>
       </span>
       <span className="flex min-w-0 flex-wrap gap-1 md:flex-nowrap md:overflow-hidden">
@@ -64,7 +81,7 @@ export const LinhaLead = React.memo(function LinhaLead({
       <span className="hidden truncate text-xs text-fg-muted md:block">{rotuloOrigem(lead.origem)}</span>
       <span className="num hidden text-xs text-fg-muted md:block">{now ? formatRelative(new Date(lead.created_at), now) : ""}</span>
       <span className="flex items-center gap-2 md:contents">
-        <SlaBadge deadline={new Date(lead.sla_vence_em)} respondedAt={lead.primeira_resposta_em ? new Date(lead.primeira_resposta_em) : null} />
+        <Andamento lead={lead} />
         <span className="num text-xs text-fg-subtle md:hidden">{rotuloOrigem(lead.origem)} · {now ? formatRelative(new Date(lead.created_at), now) : ""}</span>
         <span className="ml-auto md:ml-0">
           {responsavel ? <Avatar name={responsavel} size={22} /> : <span title="Sem responsável" className="block size-[22px] rounded-full border border-dashed border-border-strong" />}

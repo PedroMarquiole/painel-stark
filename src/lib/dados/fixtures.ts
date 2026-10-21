@@ -62,6 +62,7 @@ export function leads(): LeadInbox[] {
     whatsapp: `+55119${String(70000000 + i * 1379).padStart(8, "0")}`,
     empresa: p[1],
     score: null,
+    etapa: (p[8] && p[6] === "novo" ? "triagem" : p[6]) as Etapa,
   }));
 }
 
@@ -78,7 +79,7 @@ export function negocios(): NegocioCard[] {
   return base().map(({ p, i, chegada }) => ({
     id: `neg-${i}`,
     titulo: `${{ sistemas_web: "Sistemas web", aplicativo: "Aplicativo", automacao_ia: "Automação e IA", integracoes_apis: "Integrações e APIs", dashboards: "Dashboards", site_landing: "Site ou landing page", loja_virtual: "Loja virtual", evoluir_existente: "Evoluir o que já existe" }[p[2][0]]} · ${p[1]}`,
-    etapa: p[6],
+    etapa: (p[8] && p[6] === "novo" ? "triagem" : p[6]) as Etapa,
     etapa_desde: iso(i === 9 ? agora - 12 * D : chegada + Math.max(0.5, p[7] / 3) * D),
     ordem: i,
     valor_estimado: p[9],
@@ -94,6 +95,8 @@ export function negocios(): NegocioCard[] {
     motivo_perda: p[10],
     previsao_fechamento: i === 10 ? iso(agora + 6 * D).slice(0, 10) : null,
     created_at: iso(chegada),
+    lead_id: `lead-${i}`,
+    respondido: Boolean(p[8]) || p[6] !== "novo",
   }));
 }
 

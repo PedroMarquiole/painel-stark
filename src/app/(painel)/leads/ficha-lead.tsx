@@ -47,6 +47,7 @@ export function FichaLead({
   const [lead, setLead] = React.useState<LeadDetalhe | null>(null);
   const [erro, setErro] = React.useState(false);
   const [modo, setModo] = React.useState<"email" | "externo" | "nota" | "descartar" | null>(null);
+  const [enviando, setEnviando] = React.useState(false); // trava contra clique duplo (e-mail duplicado)
   const respostaRef = React.useRef<HTMLTextAreaElement>(null);
 
   React.useEffect(() => {
@@ -76,10 +77,12 @@ export function FichaLead({
     setLead((l) => l && { ...l, atividades: [{ ...a, id: crypto.randomUUID(), ocorreu_em: new Date().toISOString(), autor_nome: perfil.nome }, ...l.atividades] });
 
   async function enviarEmail(form: FormData) {
-    if (!base) return;
+    if (!base || enviando) return;
     const assunto = String(form.get("assunto") ?? "");
     const corpo = String(form.get("corpo") ?? "");
+    setEnviando(true);
     const r = await chamar(responderLead(base.id, "email", assunto, corpo));
+    setEnviando(false);
     if (!r.ok) {
       toast.error(r.erro);
       return;
@@ -89,7 +92,8 @@ export function FichaLead({
     if (!base.primeira_resposta_em) onAtualizar(base.id, { primeira_resposta_em: agora, status: "em_atendimento" });
     setLead((l) => l && { ...l, primeira_resposta_em: l.primeira_resposta_em ?? agora });
     setModo(null);
-    toast.success("E-mail na fila de envio", { description: "Sai em segundos. SLA marcado como respondido." });
+    // Na 1ª resposta, a caixa de entrada avisa para onde o pedido foi
+    if (base.primeira_resposta_em) toast.success("E-mail enviado", { description: "Sai em segundos e aparece na linha do tempo." });
   }
 
   async function registrarExterno(form: FormData) {
@@ -109,7 +113,7 @@ export function FichaLead({
     if (!base.primeira_resposta_em && new Date(momento) >= new Date(base.created_at)) onAtualizar(base.id, { primeira_resposta_em: momento, status: "em_atendimento" });
     setLead((l) => l && { ...l, primeira_resposta_em: l.primeira_resposta_em ?? momento });
     setModo(null);
-    toast.success("Contato registrado");
+    if (base.primeira_resposta_em || new Date(momento) < new Date(base.created_at)) toast.success("Contato registrado");
   }
 
   async function salvarNota(form: FormData) {
@@ -172,7 +176,7 @@ export function FichaLead({
                 <span className="text-xs text-fg-subtle">⌘ Enter envia</span>
                 <div className="flex gap-2">
                   <Button type="button" variant="ghost" size="sm" onClick={() => setModo(null)}>Cancelar</Button>
-                  <Button type="submit" variant="primary" size="sm" disabled={lead?.contato.opt_out_email}><Send /> Enviar e-mail</Button>
+                  <Button type="submit" variant="primary" size="sm" disabled={lead?.contato.opt_out_email || enviando}><Send /> {enviando ? "Enviando…" : "Enviar e-mail"}</Button>
                 </div>
               </div>
             </form>
@@ -288,7 +292,10 @@ export function FichaLead({
                 {(lead.utm.medium || lead.utm.campaign) && <Campo rotulo="Campanha"><span className="num text-xs">{[lead.utm.source, lead.utm.medium, lead.utm.campaign].filter(Boolean).join(" / ")}</span></Campo>}
                 {lead.negocio && (
                   <Campo rotulo="Negócio">
-                    <Link href="/funil" className="hover:underline">{ROTULO_ETAPA[lead.negocio.etapa]}{lead.negocio.valor_estimado ? <span className="num"> · {formatBRL(lead.negocio.valor_estimado)}</span> : ""}</Link>
+                    <Link href={`/funil?id=${lead.negocio.id}`} className="inline-flex items-center gap-1 text-accent hover:underline">
+                      {ROTULO_ETAPA[lead.negocio.etapa]}{lead.negocio.valor_estimado ? <span className="num"> · {formatBRL(lead.negocio.valor_estimado)}</span> : ""}
+                      <ArrowUpRight className="size-3.5" aria-hidden /> <span className="sr-only">ver no funil</span>
+                    </Link>
                   </Campo>
                 )}
                 <Campo rotulo="LGPD">{lead.consentimento_lgpd_em ? <span className="text-xs text-fg-muted">Aceite em {fmtData.format(new Date(lead.consentimento_lgpd_em))}</span> : <span className="text-xs text-fg-subtle">Sem registro (criado manualmente)</span>}</Campo>

@@ -27,6 +27,7 @@ export interface LeadInbox {
   whatsapp: string | null;
   empresa: string | null;
   score: number | null;
+  etapa: Etapa | null; // etapa do negócio no funil
 }
 
 export interface Atividade {
@@ -75,6 +76,8 @@ export interface NegocioCard {
   motivo_perda: MotivoPerda | null;
   previsao_fechamento: string | null;
   created_at: string;
+  lead_id: string | null;   // pedido de origem (o mais antigo)
+  respondido: boolean;      // alguém já respondeu o cliente
 }
 
 export interface EtapaConfig {

@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { OFFLINE } from "@/lib/env";
 import { supabaseServidor } from "@/lib/supabase/server";
-import type { Servico } from "@/lib/rotulos";
+import type { Etapa, Servico } from "@/lib/rotulos";
 import * as fx from "./fixtures";
 import type {
   Atividade, Automacao, EtapaConfig, Execucao, Indicadores, LeadDetalhe, LeadInbox, NegocioCard, Notificacao, Perfil, ResultadoBusca,
@@ -28,7 +28,7 @@ export const listarEquipe = cache(async (): Promise<Perfil[]> => {
 });
 
 const SELECT_LEAD =
-  "id, protocolo, created_at, status, servicos, situacao_atual, dor, origem_informada, utm_source, sla_vence_em, primeira_resposta_em, responsavel_id, contato_id, negocio_id, score, nome_informado, email_informado, empresa_informada, contato:contatos(nome, email, whatsapp, empresa:empresas(nome))";
+  "id, protocolo, created_at, status, servicos, situacao_atual, dor, origem_informada, utm_source, sla_vence_em, primeira_resposta_em, responsavel_id, contato_id, negocio_id, score, nome_informado, email_informado, empresa_informada, contato:contatos(nome, email, whatsapp, empresa:empresas(nome)), negocio:negocios!leads_negocio_id_fkey(etapa)";
 
 type LinhaLead = {
   id: string; protocolo: number; created_at: string; status: string; servicos: Servico[]; situacao_atual: LeadInbox["situacao_atual"];
@@ -36,6 +36,7 @@ type LinhaLead = {
   responsavel_id: string | null; contato_id: string; negocio_id: string | null; score: number | null; nome_informado: string;
   email_informado: string | null; empresa_informada: string | null;
   contato: { nome: string; email: string | null; whatsapp: string | null; empresa: { nome: string } | null } | null;
+  negocio: { etapa: Etapa } | null;
 };
 
 const paraInbox = (l: LinhaLead): LeadInbox => ({
@@ -43,7 +44,7 @@ const paraInbox = (l: LinhaLead): LeadInbox => ({
   situacao_atual: l.situacao_atual, dor: l.dor, origem: l.utm_source ?? l.origem_informada, sla_vence_em: l.sla_vence_em,
   primeira_resposta_em: l.primeira_resposta_em, responsavel_id: l.responsavel_id, contato_id: l.contato_id, negocio_id: l.negocio_id,
   nome: l.contato?.nome ?? l.nome_informado, email: l.contato?.email ?? l.email_informado, whatsapp: l.contato?.whatsapp ?? null,
-  empresa: l.contato?.empresa?.nome ?? l.empresa_informada, score: l.score,
+  empresa: l.contato?.empresa?.nome ?? l.empresa_informada, score: l.score, etapa: l.negocio?.etapa ?? null,
 });
 
 /** Caixa de entrada: tudo em aberto + o que chegou nos últimos N dias (padrão 14; até 90 vindo da home). */
@@ -125,19 +126,23 @@ export async function listarNegocios(): Promise<NegocioCard[]> {
   const d90 = diasAtras(120);
   const { data, error } = await sb
     .from("negocios")
-    .select("id, titulo, etapa, etapa_desde, ordem, valor_estimado, probabilidade, servicos, responsavel_id, contato_id, ganho_em, perdido_em, motivo_perda, previsao_fechamento, created_at, contato:contatos(nome, empresa:empresas(nome)), leads(protocolo)")
+    .select("id, titulo, etapa, etapa_desde, ordem, valor_estimado, probabilidade, servicos, responsavel_id, contato_id, ganho_em, perdido_em, motivo_perda, previsao_fechamento, created_at, contato:contatos(nome, empresa:empresas(nome)), leads!leads_negocio_id_fkey(id, protocolo, primeira_resposta_em)")
     .or(`etapa.not.in.(ganho,perdido),ganho_em.gte.${d90},perdido_em.gte.${d90}`)
     .order("ordem")
     .order("etapa_desde", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []).map(({ contato, leads, ...n }) => {
     const c = contato as unknown as { nome: string; empresa: { nome: string } | null } | null;
-    const protocolos = ((leads ?? []) as { protocolo: number }[]).map((x) => x.protocolo);
+    const pedidos = ((leads ?? []) as { id: string; protocolo: number; primeira_resposta_em: string | null }[])
+      .sort((a, b) => a.protocolo - b.protocolo);
     return {
       ...n,
       contato_nome: c?.nome ?? "—",
       empresa: c?.empresa?.nome ?? null,
-      protocolo: protocolos.length ? Math.min(...protocolos) : null,
+      protocolo: pedidos[0]?.protocolo ?? null,
+      lead_id: pedidos[0]?.id ?? null,
+      // negócio criado à mão (sem pedido) conta como já em conversa
+      respondido: pedidos.length === 0 || pedidos.some((x) => x.primeira_resposta_em),
     } as NegocioCard;
   });
 }
