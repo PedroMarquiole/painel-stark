@@ -78,6 +78,10 @@ export interface NegocioCard {
   created_at: string;
   lead_id: string | null;   // pedido de origem (o mais antigo)
   respondido: boolean;      // alguém já respondeu o cliente
+  sla_vence_em: string | null; // prazo do pedido ainda sem resposta
+  motivo_perda_detalhe: string | null;
+  contato_email: string | null;
+  contato_whatsapp: string | null;
 }
 
 export interface EtapaConfig {

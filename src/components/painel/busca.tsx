@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import * as D from "@radix-ui/react-dialog";
 import { useTheme } from "next-themes";
-import { BarChart3, Bot, Building2, Columns3, Home, Inbox, LayoutTemplate, Moon, Plus, Search, Sun, User } from "lucide-react";
+import { BarChart3, Bot, Columns3, Home, Inbox, LayoutTemplate, Moon, Plus, Search, Sun, User } from "lucide-react";
 import { Kbd } from "@/components/ui/kbd";
 import { buscarGlobal } from "@/app/(painel)/acoes";
+import { usePainel } from "./contexto";
 import type { ResultadoBusca } from "@/lib/dados/tipos";
 
 const item =
@@ -38,6 +39,23 @@ export function Busca({ aberto, setAberto, novoLead }: { aberto: boolean; setAbe
     router.push(href);
   };
 
+  // Comandos ficam sempre disponíveis: sem termo, todos; com termo, os que batem com o que foi digitado
+  const { perfil } = usePainel();
+  const sem = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const comandos = [
+    { id: "inicio", rotulo: "Início", Icone: Home, teclas: ["G", "H"], fazer: () => ir("/") },
+    { id: "leads", rotulo: "Caixa de entrada", Icone: Inbox, teclas: ["G", "I"], fazer: () => ir("/leads") },
+    { id: "funil", rotulo: "Funil", Icone: Columns3, teclas: ["G", "F"], fazer: () => ir("/funil") },
+    { id: "relatorios", rotulo: "Relatórios", Icone: BarChart3, teclas: ["G", "R"], fazer: () => ir("/relatorios") },
+    { id: "automacoes", rotulo: "Automações", Icone: Bot, teclas: ["G", "A"], fazer: () => ir("/automacoes") },
+    { id: "novo", rotulo: "Novo lead", Icone: Plus, teclas: ["N"], fazer: () => { setAberto(false); novoLead(); } },
+    { id: "tema", rotulo: resolvedTheme === "dark" ? "Tema claro" : "Tema escuro", Icone: resolvedTheme === "dark" ? Sun : Moon, teclas: null,
+      fazer: () => { setTheme(resolvedTheme === "dark" ? "light" : "dark"); setAberto(false); } },
+    ...(perfil.papel === "admin" ? [{ id: "design", rotulo: "Design system", Icone: LayoutTemplate, teclas: null, fazer: () => ir("/design") }] : []),
+  ];
+  const curto = termo.trim().length < 2;
+  const comandosVisiveis = curto ? comandos : comandos.filter((c) => sem(c.rotulo).includes(sem(termo.trim())));
+
   return (
     <D.Root open={aberto} onOpenChange={setAberto}>
       <D.Portal>
@@ -50,7 +68,7 @@ export function Busca({ aberto, setAberto, novoLead }: { aberto: boolean; setAbe
               <Command.Input
                 value={termo}
                 onValueChange={setTermo}
-                placeholder="Buscar cliente, empresa, #protocolo… ou digite um comando"
+                placeholder="Buscar lead, cliente, empresa ou #protocolo, ou ir para uma tela"
                 className="h-12 flex-1 bg-transparent text-sm outline-none placeholder:text-fg-subtle"
               />
               <Kbd>Esc</Kbd>
@@ -70,19 +88,14 @@ export function Busca({ aberto, setAberto, novoLead }: { aberto: boolean; setAbe
                   ))}
                 </Command.Group>
               )}
-              {termo.trim().length < 2 && (
-                <Command.Group heading="Ir para" className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-fg-subtle">
-                  <Command.Item value="inicio" onSelect={() => ir("/")} className={item}><Home /> Início <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>H</Kbd></span></Command.Item>
-                  <Command.Item value="leads" onSelect={() => ir("/leads")} className={item}><Inbox /> Caixa de entrada <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>I</Kbd></span></Command.Item>
-                  <Command.Item value="funil" onSelect={() => ir("/funil")} className={item}><Columns3 /> Funil <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>F</Kbd></span></Command.Item>
-                  <Command.Item value="relatorios" onSelect={() => ir("/relatorios")} className={item}><BarChart3 /> Relatórios <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>R</Kbd></span></Command.Item>
-                  <Command.Item value="automacoes" onSelect={() => ir("/automacoes")} className={item}><Bot /> Automações <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>A</Kbd></span></Command.Item>
-                  <Command.Item value="design" onSelect={() => ir("/design")} className={item}><LayoutTemplate /> Design system</Command.Item>
-                  <Command.Item value="novo" onSelect={() => { setAberto(false); novoLead(); }} className={item}><Plus /> Novo lead <span className="ml-auto"><Kbd>N</Kbd></span></Command.Item>
-                  <Command.Item value="tema" onSelect={() => { setTheme(resolvedTheme === "dark" ? "light" : "dark"); setAberto(false); }} className={item}>
-                    {resolvedTheme === "dark" ? <Sun /> : <Moon />} Alternar tema
-                  </Command.Item>
-                  <Command.Item value="empresas" disabled className={`${item} opacity-50`}><Building2 /> Projetos e financeiro chegam nas Fases 3 e 4</Command.Item>
+              {comandosVisiveis.length > 0 && (
+                <Command.Group heading={curto ? "Ir para" : "Comandos"} className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-fg-subtle">
+                  {comandosVisiveis.map((c) => (
+                    <Command.Item key={c.id} value={`cmd-${c.id}`} onSelect={c.fazer} className={item}>
+                      <c.Icone /> {c.rotulo}
+                      {c.teclas && <span className="ml-auto flex gap-1">{c.teclas.map((t) => <Kbd key={t}>{t}</Kbd>)}</span>}
+                    </Command.Item>
+                  ))}
                 </Command.Group>
               )}
             </Command.List>

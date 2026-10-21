@@ -74,8 +74,11 @@ export const LinhaLead = React.memo(function LinhaLead({
         <span className="num ml-auto text-xs text-fg-subtle md:hidden">{formatProtocolo(lead.protocolo)}</span>
       </span>
       <span className="flex min-w-0 flex-wrap gap-1 md:flex-nowrap md:overflow-hidden">
-        {lead.servicos.slice(0, 2).map((s) => <Badge key={s} tone="outline" className="shrink-0">{SERVICOS[s]}</Badge>)}
-        {lead.servicos.length > 2 && <Badge tone="outline">+{lead.servicos.length - 2}</Badge>}
+        {lead.servicos.slice(0, 2).map((s, i) => (
+          <Badge key={s} tone="outline" title={SERVICOS[s]} className={cn("min-w-0", i === 0 ? "max-w-full shrink" : "hidden xl:inline-flex")}><span className="truncate">{SERVICOS[s]}</span></Badge>
+        ))}
+        {lead.servicos.length > 1 && <Badge tone="outline" className="shrink-0 xl:hidden" title={lead.servicos.slice(1).map((s) => SERVICOS[s]).join(", ")}>+{lead.servicos.length - 1}</Badge>}
+        {lead.servicos.length > 2 && <Badge tone="outline" className="hidden shrink-0 xl:inline-flex" title={lead.servicos.slice(2).map((s) => SERVICOS[s]).join(", ")}>+{lead.servicos.length - 2}</Badge>}
       </span>
       <span className="line-clamp-2 text-fg-muted md:truncate">{lead.dor}</span>
       <span className="hidden truncate text-xs text-fg-muted md:block">{rotuloOrigem(lead.origem)}</span>

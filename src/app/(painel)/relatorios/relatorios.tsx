@@ -2,12 +2,18 @@
 import Link from "next/link";
 import { BarrasHorizontais, LinhaSemanal } from "@/components/charts/graficos";
 import { Bloco, Periodo, Titulo, Variacao, horas, mil, variacao } from "@/components/painel/blocos";
-import { MOTIVOS_PERDA, SERVICOS, SITUACOES, rotuloOrigem } from "@/lib/rotulos";
+import { MOTIVOS_PERDA, SERVICOS, SITUACOES, chaveOrigem, rotuloOrigem } from "@/lib/rotulos";
 import type { Indicadores } from "@/lib/dados/tipos";
 
 /** Análises para consultar de vez em quando. O dia a dia fica na Início. */
 export function Relatorios({ k }: { k: Indicadores }) {
   const todos = `/leads?visao=todos&dias=${k.dias}`;
+  // "site" e "direto" viram uma barra só
+  const origens = Object.values(k.por_origem.reduce<Record<string, { rotulo: string; n: number; chave: string }>>((acc, o) => {
+    const chave = chaveOrigem(o.origem);
+    acc[chave] = { rotulo: rotuloOrigem(chave), n: (acc[chave]?.n ?? 0) + o.n, chave };
+    return acc;
+  }, {})).sort((a, b) => b.n - a.n);
   const vendas = [
     { rotulo: "Taxa de ganho", valor: k.taxa_ganho_pct.atual == null ? "—" : `${k.taxa_ganho_pct.atual}%`, delta: variacao(k.taxa_ganho_pct), bom: "sobe" as const },
     { rotulo: "Ticket médio", valor: mil(k.ticket_medio.atual), delta: variacao(k.ticket_medio), bom: "sobe" as const },
@@ -18,7 +24,7 @@ export function Relatorios({ k }: { k: Indicadores }) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Relatórios</h1>
-          <p className="mt-1 text-sm text-fg-muted">Últimos {k.dias} dias, comparados com o período anterior. Clique numa barra para ver os leads.</p>
+          <p className="mt-1 text-sm text-fg-muted">Últimos {k.dias} dias, comparados com o período anterior. Clique numa barra de serviço, origem ou situação para ver os pedidos.</p>
         </div>
         <Periodo dias={k.dias} base="/relatorios" />
       </div>
@@ -49,7 +55,7 @@ export function Relatorios({ k }: { k: Indicadores }) {
         </Bloco>
         <Bloco>
           <Titulo>Origem dos leads</Titulo>
-          <BarrasHorizontais nome="Leads" cor="var(--c-series-2)" dados={k.por_origem.map((o) => ({ rotulo: rotuloOrigem(o.origem), n: o.n, chave: o.origem }))}
+          <BarrasHorizontais nome="Leads" cor="var(--c-series-2)" dados={origens}
             href={(c) => `${todos}&origem=${c}`} />
         </Bloco>
         <Bloco>
@@ -60,8 +66,7 @@ export function Relatorios({ k }: { k: Indicadores }) {
         </Bloco>
         <Bloco>
           <Titulo>Motivos de perda</Titulo>
-          <BarrasHorizontais nome="Perdas" cor="var(--c-series-5)" dados={k.motivos_perda.map((m) => ({ rotulo: MOTIVOS_PERDA[m.motivo], n: m.n, chave: m.motivo }))}
-            href={() => "/funil"} />
+          <BarrasHorizontais nome="Perdas" cor="var(--c-series-5)" dados={k.motivos_perda.map((m) => ({ rotulo: MOTIVOS_PERDA[m.motivo], n: m.n, chave: m.motivo }))} />
         </Bloco>
       </div>
       <p className="text-xs text-fg-subtle">Utilização da equipe e MRR entram com projetos e financeiro (Fases 3 e 4).</p>

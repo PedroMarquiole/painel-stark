@@ -6,7 +6,7 @@ import {
   DndContext, DragOverlay, KeyboardCode, KeyboardSensor, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
-import { ArrowDown, ArrowRight, ArrowUp, ArrowUpRight, CalendarClock, ChevronsRight, Columns3, MailWarning, Rows3, Search } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpRight, CalendarClock, ChevronsRight, Columns3, MailWarning, Rows3, Search, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,7 @@ import { Input, Label } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { InlineField } from "@/components/domain/inline-field";
 import { usePainel } from "@/components/painel/contexto";
-import { cn, formatBRL, formatProtocolo } from "@/lib/utils";
+import { cn, formatBRL, formatProtocolo, formatarTelefone } from "@/lib/utils";
 import { MOTIVOS_PERDA, ROTULO_ETAPA, SERVICOS, type Etapa, type MotivoPerda, type Servico } from "@/lib/rotulos";
 import type { EtapaConfig, NegocioCard } from "@/lib/dados/tipos";
 import { chamar } from "@/lib/chamar";
@@ -31,7 +31,24 @@ const fechado = (e: Etapa) => e === "ganho" || e === "perdido";
 function diasNaEtapa(n: NegocioCard) {
   return Math.max(0, Math.floor((Date.now() - new Date(n.etapa_desde).getTime()) / DIA));
 }
-const tempo = (d: number) => (d <= 0 ? "hoje" : d === 1 ? "há 1 dia" : `há ${d} dias`);
+const naEtapa = (d: number) => (d <= 0 ? "na etapa desde hoje" : d === 1 ? "na etapa há 1 dia" : `na etapa há ${d} dias`);
+const fmtDia = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" });
+const hojeSp = () => new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10);
+const fechamentoVencido = (n: NegocioCard) => !fechado(n.etapa) && Boolean(n.previsao_fechamento) && n.previsao_fechamento! < hojeSp();
+/** Prazo do pedido ainda sem resposta, em palavras. */
+function prazo(n: NegocioCard) {
+  if (!n.sla_vence_em) return null;
+  const ms = new Date(n.sla_vence_em).getTime() - Date.now();
+  const h = Math.round(Math.abs(ms) / 3_600_000);
+  const t = h < 1 ? "menos de 1h" : h < 48 ? `${h}h` : `${Math.round(h / 24)} dias`;
+  return ms < 0 ? `prazo estourado há ${t}` : `prazo vence em ${t}`;
+}
+/** Busca: aceita nome, empresa e protocolo com ou sem zeros ("#36", "36", "#0036"). */
+function bate(n: NegocioCard, termo: string) {
+  const num = termo.replace(/^#/, "");
+  if (/^\d+$/.test(num) && n.protocolo === Number(num)) return true;
+  return `${n.titulo} ${n.contato_nome} ${n.empresa ?? ""} ${n.protocolo ? formatProtocolo(n.protocolo) : ""}`.toLowerCase().includes(termo);
+}
 
 /** O que normalmente vem a seguir em cada etapa. Ajuda quem pega o card a saber o que fazer. */
 const PROXIMO: Record<Etapa, string> = {
@@ -68,8 +85,8 @@ function Cartao({ n, limite, arrastando, onAbrir }: { n: NegocioCard; limite: nu
     >
       <div className="flex items-center justify-between gap-2">
         <span className="num text-xs text-fg-subtle">{n.protocolo ? formatProtocolo(n.protocolo) : "manual"}</span>
-        {parado ? <Badge tone="warning"><CalendarClock aria-hidden />parado {dias}d</Badge>
-          : !fechado(n.etapa) && <span className="text-xs text-fg-subtle">{tempo(dias)} aqui</span>}
+        {parado ? <Badge tone="warning" className="shrink-0" title={`Parado: ${naEtapa(dias)} (alerta a partir de ${limite} dias)`}><CalendarClock aria-hidden />{dias}d</Badge>
+          : !fechado(n.etapa) && <span className="num shrink-0 text-xs text-fg-subtle" title={naEtapa(dias)}>{dias === 0 ? "hoje" : `${dias}d`}</span>}
         {n.etapa === "perdido" && n.motivo_perda && <Badge tone="danger">{MOTIVOS_PERDA[n.motivo_perda]}</Badge>}
       </div>
       <h4 className="mt-1.5 line-clamp-2 text-sm font-medium">{n.contato_nome}{n.empresa ? <span className="font-normal text-fg-muted">, {n.empresa}</span> : null}</h4>
@@ -77,11 +94,17 @@ function Cartao({ n, limite, arrastando, onAbrir }: { n: NegocioCard; limite: nu
       {!fechado(n.etapa) && (
         n.respondido
           ? <p className="mt-2 flex items-center gap-1.5 text-xs text-fg-muted"><ArrowRight className="size-3 shrink-0 text-fg-subtle" aria-hidden /><span className="truncate">{PROXIMO[n.etapa]}</span></p>
-          : <p className="mt-2 flex items-center gap-1.5 text-xs text-danger"><MailWarning className="size-3 shrink-0" aria-hidden />Cliente ainda sem resposta</p>
+          : <p className="mt-2 flex items-start gap-1.5 text-xs text-danger"><MailWarning className="mt-0.5 size-3 shrink-0" aria-hidden /><span>Sem resposta{prazo(n) ? `, ${prazo(n)}` : ""}</span></p>
+      )}
+      {n.previsao_fechamento && !fechado(n.etapa) && (
+        <p className={cn("mt-1 flex items-center gap-1.5 text-xs", fechamentoVencido(n) ? "text-warning" : "text-fg-subtle")}>
+          <CalendarClock className="size-3 shrink-0" aria-hidden />
+          {fechamentoVencido(n) ? "Fechamento previsto já passou" : "Fechar até"} <span className="num">{fmtDia.format(new Date(n.previsao_fechamento))}</span>
+        </p>
       )}
       <div className="mt-2.5 flex items-center gap-2">
         {n.valor_estimado ? <span className="num text-sm">{formatBRL(n.valor_estimado)}</span> : <span className="text-xs text-fg-subtle">sem valor</span>}
-        {!fechado(n.etapa) && <span className="num text-xs text-fg-subtle">{n.probabilidade}%</span>}
+        {!fechado(n.etapa) && n.valor_estimado ? <span className="num text-xs text-fg-subtle" title="Chance de fechar">{n.probabilidade}%</span> : null}
         <span className="flex-1" />
         {resp ? <Avatar name={resp} size={20} /> : <span title="Sem responsável" className="size-5 rounded-full border border-dashed border-border-strong" />}
       </div>
@@ -97,7 +120,7 @@ function Arrastavel({ n, limite, onAbrir, somenteLeitura }: { n: NegocioCard; li
       {...listeners}
       {...attributes}
       aria-roledescription="card arrastável"
-      aria-label={`${n.titulo}. Enter abre; Espaço pega para arrastar.`}
+      aria-describedby="dica-arrastar"
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           e.preventDefault();
@@ -141,21 +164,22 @@ function Coluna({ e, itens, onAbrir, somenteLeitura, recolhida, onAlternar }: {
       ref={setNodeRef}
       aria-label={e.rotulo}
       className={cn(
-        "flex w-[256px] shrink-0 flex-col rounded-2xl bg-bloco shadow-bloco transition-colors duration-150 xl:w-auto xl:min-w-[184px] xl:flex-1 xl:basis-0",
+        "flex w-[256px] shrink-0 flex-col rounded-2xl bg-bloco shadow-bloco transition-colors duration-150 xl:w-auto xl:min-w-[160px] xl:flex-1 xl:basis-0",
         isOver && "bg-accent-soft ring-1 ring-accent/40",
       )}
     >
-      <header className="flex items-baseline gap-2 px-4 pb-1 pt-4">
-        <span className={cn("size-2 shrink-0 rounded-full", cor)} aria-hidden />
-        <h2 className="min-w-0 truncate font-sans text-sm font-medium" title={e.rotulo}>{e.rotulo}</h2>
-        <span className="num text-xs text-fg-subtle">{itens.length}</span>
+      <header className="flex items-start gap-2 px-4 pb-1 pt-4">
+        <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", cor)} aria-hidden />
+        <h2 className="min-w-0 font-sans text-sm font-medium leading-5">{e.rotulo} <span className="num ml-0.5 text-xs font-normal text-fg-subtle">{itens.length}</span></h2>
         <span className="flex-1" />
         {ehFechada && onAlternar && (
           <button onClick={onAlternar} className="text-xs text-fg-subtle hover:text-fg" aria-label={`Recolher ${e.rotulo}`}><ChevronsRight className="size-4" /></button>
         )}
       </header>
       <p className="num px-4 pb-2.5 text-xs text-fg-subtle" title={ehFechada ? "Total" : `Total ${formatBRL(total)}, ponderado pela probabilidade ${formatBRL(ponderado)}`}>
-        {total > 0 ? (ehFechada ? compacto(total) : <>{compacto(total)} <span className="font-sans">· previsto</span> {compacto(ponderado)}</>) : " "}
+        {total > 0 ? (ehFechada ? compacto(total) : (
+          <span className="flex flex-wrap gap-x-2"><span className="whitespace-nowrap">{compacto(total)}</span><span className="whitespace-nowrap font-sans">previsto <span className="num">{compacto(ponderado)}</span></span></span>
+        )) : "\u00a0"}
       </p>
       <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
         {itens.map((n) => <Arrastavel key={n.id} n={n} limite={e.dias_alerta_parado} onAbrir={() => onAbrir(n.id)} somenteLeitura={somenteLeitura} />)}
@@ -169,6 +193,8 @@ type ColunaLista = "negocio" | "etapa" | "valor" | "previsto" | "responsavel" | 
 
 /** Todos os negócios numa tabela. Clicar no cabeçalho ordena. */
 function Lista({ itens, etapas, onAbrir }: { itens: NegocioCard[]; etapas: EtapaConfig[]; onAbrir: (id: string) => void }) {
+  const limite = (e: Etapa) => etapas.find((x) => x.etapa === e)?.dias_alerta_parado ?? null;
+  const parado = (n: NegocioCard) => !fechado(n.etapa) && limite(n.etapa) != null && diasNaEtapa(n) > limite(n.etapa)!;
   const { nomeDe } = usePainel();
   const [ord, setOrd] = React.useState<{ c: ColunaLista; asc: boolean }>({ c: "etapa", asc: true });
   const ordemEtapa = (e: Etapa) => etapas.find((x) => x.etapa === e)?.ordem ?? 0;
@@ -178,7 +204,7 @@ function Lista({ itens, etapas, onAbrir }: { itens: NegocioCard[]; etapas: Etapa
     valor: (n) => n.valor_estimado ?? -1,
     previsto: (n) => fechado(n.etapa) ? -1 : ((n.valor_estimado ?? 0) * n.probabilidade) / 100,
     responsavel: (n) => (nomeDe(n.responsavel_id) ?? "~").toLowerCase(),
-    dias: (n) => diasNaEtapa(n),
+    dias: (n) => (fechado(n.etapa) ? -1 : diasNaEtapa(n)),
     fechamento: (n) => n.previsao_fechamento ?? "9999",
   };
   const linhas = [...itens].sort((a, b) => {
@@ -193,10 +219,27 @@ function Lista({ itens, etapas, onAbrir }: { itens: NegocioCard[]; etapas: Etapa
       </button>
     </th>
   );
-  const fmtDia = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" });
   return (
     <div className="mx-4 mb-4 min-h-0 overflow-auto rounded-2xl bg-bloco shadow-bloco sm:mx-6 lg:ml-1">
-      <table className="w-full min-w-[920px] text-sm">
+      {/* Celular: uma linha empilhada por negócio */}
+      <ul className="sm:hidden">
+        {linhas.map((n) => (
+          <li key={n.id}>
+            <button onClick={() => onAbrir(n.id)} className="flex w-full flex-col gap-1 border-b border-border/70 px-4 py-3 text-left">
+              <span className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{n.contato_nome}{n.empresa && <span className="font-normal text-fg-muted">, {n.empresa}</span>}</span>
+                <span className="num text-sm">{n.valor_estimado ? compacto(n.valor_estimado) : ""}</span>
+              </span>
+              <span className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
+                <Badge tone={n.etapa === "ganho" ? "success" : n.etapa === "perdido" ? "danger" : "neutral"} dot>{ROTULO_ETAPA[n.etapa]}</Badge>
+                {!fechado(n.etapa) && <span className={cn(parado(n) && "text-warning")}>{naEtapa(diasNaEtapa(n))}</span>}
+                {!n.respondido && !fechado(n.etapa) && <span className="text-danger">sem resposta</span>}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <table className="hidden w-full min-w-[920px] text-sm sm:table">
         <thead className="sticky top-0 z-10 bg-bloco/95 text-left text-xs text-fg-subtle backdrop-blur">
           <tr className="border-b border-border">
             <Cab c="negocio" className="pl-5">Cliente</Cab>
@@ -223,12 +266,17 @@ function Lista({ itens, etapas, onAbrir }: { itens: NegocioCard[]; etapas: Etapa
                 <td className="px-3">
                   <Badge tone={n.etapa === "ganho" ? "success" : n.etapa === "perdido" ? "danger" : "neutral"} dot>{ROTULO_ETAPA[n.etapa]}</Badge>
                   {!n.respondido && !fechado(n.etapa) && <span className="ml-1.5 text-xs text-danger">sem resposta</span>}
+                  {n.respondido && !fechado(n.etapa) && <p className="mt-0.5 truncate text-xs text-fg-subtle">{PROXIMO[n.etapa]}</p>}
                 </td>
                 <td className="num px-3 text-right">{n.valor_estimado ? formatBRL(n.valor_estimado) : <span className="font-sans text-xs text-fg-subtle">sem valor</span>}</td>
                 <td className="num px-3 text-right text-fg-muted">{fechado(n.etapa) || !n.valor_estimado ? "—" : formatBRL(((n.valor_estimado ?? 0) * n.probabilidade) / 100)}</td>
                 <td className="px-3">{resp ? <span className="flex items-center gap-2"><Avatar name={resp} size={20} /><span className="truncate">{resp}</span></span> : <span className="text-xs text-fg-subtle">ninguém</span>}</td>
-                <td className="num px-3 text-fg-muted">{fechado(n.etapa) ? "—" : `${diasNaEtapa(n)}d`}</td>
-                <td className="num pr-5 pl-3 text-fg-muted">{n.previsao_fechamento ? fmtDia.format(new Date(n.previsao_fechamento)) : "—"}</td>
+                <td className={cn("num px-3 text-fg-muted", parado(n) && "text-warning")} title={parado(n) ? "Parado: passou do tempo de alerta da etapa" : undefined}>
+                  {fechado(n.etapa) ? "—" : `${diasNaEtapa(n)}d`}
+                </td>
+                <td className={cn("num pl-3 pr-5 text-fg-muted", fechamentoVencido(n) && "text-warning")} title={fechamentoVencido(n) ? "A data prevista já passou" : undefined}>
+                  {n.previsao_fechamento ? fmtDia.format(new Date(n.previsao_fechamento)) : "—"}
+                </td>
               </tr>
             );
           })}
@@ -255,6 +303,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
   const [ordem, setOrdem] = React.useState<Ordem>("parado");
   const [modoVer, setModoVer] = React.useState<"quadro" | "lista">("quadro");
   const [abertas, setAbertas] = React.useState<Set<Etapa>>(new Set()); // Ganho/Perdido começam recolhidas
+  const [filtrosAbertos, setFiltrosAbertos] = React.useState(false); // celular
   React.useEffect(() => setNegocios(iniciais), [iniciais]);
   React.useEffect(() => {
     const v = lerPref("funil:ver");
@@ -263,7 +312,16 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
   const verComo = (v: "quadro" | "lista") => { setModoVer(v); gravarPref("funil:ver", v); };
   // /funil?id=… (vindo da ficha do lead) abre o negócio direto
   const idDaUrl = params.get("id");
-  React.useEffect(() => { if (idDaUrl) setAberto(idDaUrl); }, [idDaUrl]);
+  React.useEffect(() => {
+    if (!idDaUrl) return;
+    if (iniciais.some((n) => n.id === idDaUrl)) setAberto(idDaUrl);
+    else toast.error("Esse negócio não está no funil", { description: "Pode ter sido fechado há mais de 4 meses." });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idDaUrl]);
+  const abrir = React.useCallback((id: string) => {
+    setAberto(id);
+    window.history.replaceState(null, "", `/funil?id=${id}`);
+  }, []);
   const negociosRef = React.useRef(negocios);
   negociosRef.current = negocios;
 
@@ -273,7 +331,13 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
     useSensor(KeyboardSensor, {
-      keyboardCodes: { start: [KeyboardCode.Space], cancel: [KeyboardCode.Esc], end: [KeyboardCode.Space, KeyboardCode.Enter] },
+      keyboardCodes: { start: [KeyboardCode.Space], cancel: [KeyboardCode.Esc], end: [KeyboardCode.Space] },
+      coordinateGetter: (ev, { currentCoordinates: c }) => {
+        const passo = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] }[ev.code];
+        if (!passo) return undefined;
+        ev.preventDefault();
+        return { x: c.x + passo[0] * 200, y: c.y + passo[1] * 60 };
+      },
     }),
   );
 
@@ -283,7 +347,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
     if (resp === "ninguem" && n.responsavel_id) return false;
     if (resp && resp !== "eu" && resp !== "ninguem" && n.responsavel_id !== resp) return false;
     if (servico && !n.servicos.includes(servico as Servico)) return false;
-    if (termo && !`${n.titulo} ${n.contato_nome} ${n.empresa ?? ""} ${n.protocolo ? formatProtocolo(n.protocolo) : ""}`.toLowerCase().includes(termo)) return false;
+    if (termo && !bate(n, termo)) return false;
     return true;
   });
   const temFiltro = Boolean(termo || resp || servico);
@@ -314,7 +378,9 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
   async function aplicar(id: string, para: Etapa, motivo?: MotivoPerda, detalhe?: string) {
     const atual = negocios.find((n) => n.id === id)!;
     const ordem = Math.max(0, ...negocios.filter((n) => n.etapa === para).map((n) => n.ordem)) + 1;
-    const prob = etapas.find((e) => e.etapa === para)?.probabilidade_padrao ?? atual.probabilidade;
+    // Igual ao banco: a padrão só substitui se a atual ainda era a padrão da etapa de origem
+    const padrao = (e: Etapa) => etapas.find((x) => x.etapa === e)?.probabilidade_padrao;
+    const prob = fechado(para) || atual.probabilidade === padrao(atual.etapa) ? (padrao(para) ?? atual.probabilidade) : atual.probabilidade;
     const marca = new Date().toISOString();
     setNegocios((xs) => xs.map((n) => (n.id === id ? {
       ...n, etapa: para, ordem, probabilidade: prob, etapa_desde: marca, motivo_perda: motivo ?? null,
@@ -326,7 +392,8 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
       toast.error(r.erro);
       return;
     }
-    toast(`${atual.titulo.split(" · ").pop()} → ${ROTULO_ETAPA[para]}`, {
+    toast(`${atual.contato_nome} → ${ROTULO_ETAPA[para]}`, {
+      id: `mover-${id}`, // um novo movimento do mesmo card substitui o aviso anterior
       action: {
         label: "Desfazer",
         onClick: async () => {
@@ -353,6 +420,15 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
     aplicar(id, para);
   }
 
+  const nomeCard = (id: string | number) => negocios.find((n) => n.id === id)?.contato_nome ?? "card";
+  const nomeEtapa = (id: string | number | undefined) => etapas.find((e) => e.etapa === id)?.rotulo ?? "fora das etapas";
+  const anuncios = {
+    onDragStart: ({ active }: { active: { id: string | number } }) => `Pegou ${nomeCard(active.id)}.`,
+    onDragOver: ({ active, over }: { active: { id: string | number }; over: { id: string | number } | null }) => `${nomeCard(active.id)} sobre ${nomeEtapa(over?.id)}.`,
+    onDragEnd: ({ active, over }: { active: { id: string | number }; over: { id: string | number } | null }) => over ? `${nomeCard(active.id)} solto em ${nomeEtapa(over.id)}.` : `${nomeCard(active.id)} voltou ao lugar.`,
+    onDragCancel: ({ active }: { active: { id: string | number } }) => `Cancelado. ${nomeCard(active.id)} voltou ao lugar.`,
+  };
+
   const ativo = negocios.find((n) => n.id === arrastando);
   const selecionado = negocios.find((n) => n.id === aberto) ?? null;
 
@@ -362,7 +438,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold">Funil</h1>
-            <p className="mt-1 text-sm text-fg-muted">
+            <p className="mt-1 text-sm text-fg-muted max-sm:hidden">
               {somenteLeitura ? "Visualização: quem move os cards é o comercial."
                 : modoVer === "quadro" ? "Arraste os cards entre as etapas (Espaço pelo teclado). Toda mudança entra na linha do tempo."
                 : "Clique num negócio para abrir. Clique no título da coluna para ordenar."}
@@ -371,24 +447,29 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
           <Segmented label="Ver como" value={modoVer} onChange={verComo}
             options={[{ value: "quadro", label: <><Columns3 aria-hidden /> Quadro</> }, { value: "lista", label: <><Rows3 aria-hidden /> Lista</> }]} />
         </div>
-        <dl className="flex flex-wrap gap-2 text-sm">
+        <dl className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 text-sm sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
           {[
-            ["Em aberto", resumo.aberto, "Soma dos negócios ainda não fechados"],
-            ["Previsto (ponderado)", resumo.ponderado, "Valor × chance de fechar, somado"],
-            ["Previsão do mês", resumo.mes, "Já ganho no mês + previsto com fechamento no mês"],
-            ["Previsão do trimestre", resumo.tri, "Já ganho no trimestre + previsto com fechamento no trimestre"],
+            ["Em aberto", resumo.aberto, "Soma do valor dos negócios ainda não fechados"],
+            ["Esperado", resumo.ponderado, "Valor de cada negócio × chance de fechar, somado"],
+            ["Para este mês", resumo.mes, "Já ganho no mês + esperado dos negócios com fechamento previsto no mês"],
+            ["Para o trimestre", resumo.tri, "Já ganho no trimestre + esperado dos negócios com fechamento previsto no trimestre"],
           ].map(([r, v, dica]) => (
-            <div key={r as string} title={dica as string} className="rounded-2xl bg-bloco px-4 py-2.5 shadow-bloco">
+            <div key={r as string} title={dica as string} className="shrink-0 rounded-2xl bg-bloco px-4 py-2.5 shadow-bloco">
               <dt className="text-xs text-fg-muted">{r}</dt>
               <dd className="num text-md font-medium">{formatBRL(v as number)}</dd>
             </div>
           ))}
+          {temFiltro && <p className="self-center whitespace-nowrap text-xs text-fg-subtle">valores só dos negócios filtrados</p>}
         </dl>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-48 flex-1 sm:max-w-xs">
+          <div className="relative min-w-40 flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute left-2.5 top-2 size-4 text-fg-subtle" aria-hidden />
             <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente, empresa ou #protocolo" className="pl-8" aria-label="Buscar no funil" />
           </div>
+          <Button variant="secondary" size="sm" className="sm:hidden" aria-expanded={filtrosAbertos} onClick={() => setFiltrosAbertos((v) => !v)}>
+            <SlidersHorizontal /> Filtros{resp || servico ? " •" : ""}
+          </Button>
+          <div className={cn("contents", !filtrosAbertos && "max-sm:hidden")}>
           <Select value={resp} onChange={(e) => setResp(e.target.value)} aria-label="Responsável">
             <option value="">Todos os responsáveis</option>
             <option value="eu">Só os meus</option>
@@ -404,18 +485,21 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
               {(Object.keys(ORDENS) as Ordem[]).map((o) => <option key={o} value={o}>Ordenar: {ORDENS[o].rotulo.toLowerCase()}</option>)}
             </Select>
           )}
+          </div>
           {temFiltro && <Button variant="ghost" size="sm" onClick={() => { setBusca(""); setResp(""); setServico(""); }}>Limpar</Button>}
           {temFiltro && <span className="text-xs text-fg-subtle">{visiveis.length} de {negocios.length} negócios</span>}
         </div>
       </div>
 
+      <p id="dica-arrastar" className="sr-only">Enter abre o negócio. Espaço pega para arrastar; setas mudam de etapa; Espaço solta.</p>
       {modoVer === "lista" ? (
-        <div className="flex min-h-0 flex-1 flex-col pt-3"><Lista itens={visiveis} etapas={etapas} onAbrir={setAberto} /></div>
+        <div className="flex min-h-0 flex-1 flex-col pt-3"><Lista itens={visiveis} etapas={etapas} onAbrir={abrir} /></div>
       ) : (
-        <DndContext id="funil" sensors={sensores} onDragStart={(e: DragStartEvent) => setArrastando(String(e.active.id))} onDragEnd={soltar} onDragCancel={() => setArrastando(null)}>
+        <DndContext id="funil" sensors={sensores} accessibility={{ announcements: anuncios, screenReaderInstructions: { draggable: "Espaço pega o card. Setas movem entre as etapas. Espaço solta, Esc cancela." } }}
+          autoScroll={{ threshold: { x: 0.08, y: 0.1 }, acceleration: 4 }} onDragStart={(e: DragStartEvent) => setArrastando(String(e.active.id))} onDragEnd={soltar} onDragCancel={() => setArrastando(null)}>
           <div className="flex flex-1 gap-3 overflow-x-auto px-4 pb-4 pt-3 sm:px-6 lg:pl-1">
             {etapas.map((e) => (
-              <Coluna key={e.etapa} e={e} itens={porEtapa(e.etapa)} onAbrir={setAberto} somenteLeitura={somenteLeitura}
+              <Coluna key={e.etapa} e={e} itens={porEtapa(e.etapa)} onAbrir={abrir} somenteLeitura={somenteLeitura}
                 recolhida={fechado(e.etapa) && !abertas.has(e.etapa)} onAlternar={fechado(e.etapa) ? () => alternar(e.etapa) : undefined} />
             ))}
           </div>
@@ -433,10 +517,10 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
 
       <Drawer
         open={Boolean(selecionado)}
-        onOpenChange={(o) => { if (!o) { setAberto(null); if (idDaUrl) window.history.replaceState(null, "", "/funil"); } }}
+        onOpenChange={(o) => { if (!o) { setAberto(null); window.history.replaceState(null, "", "/funil"); } }}
         width={480}
         title={selecionado?.titulo ?? ""}
-        subtitle={selecionado && <span>{selecionado.contato_nome}{selecionado.empresa ? ` · ${selecionado.empresa}` : ""}</span>}
+        subtitle={selecionado && <span>{selecionado.contato_nome}{selecionado.empresa && !selecionado.titulo.includes(selecionado.empresa) ? `, ${selecionado.empresa}` : ""}</span>}
         actions={selecionado && <Button size="sm" variant="ghost" asChild><Link href={`/clientes/${selecionado.contato_id}`}>Ficha <ArrowUpRight /></Link></Button>}
       >
         {selecionado && (
@@ -458,7 +542,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
             </dd>
             <dt className="text-fg-muted">Título</dt>
             <dd className="min-w-0">
-              <InlineField value={selecionado.titulo} onSave={async (v) => {
+              <InlineField disabled={somenteLeitura} value={selecionado.titulo} onSave={async (v) => {
                 const r = await chamar(atualizarNegocio(selecionado.id, { titulo: v }));
                 if (!r.ok) { toast.error(r.erro); throw 0; }
                 setNegocios((xs) => xs.map((n) => (n.id === selecionado.id ? { ...n, titulo: v } : n)));
@@ -466,7 +550,8 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
             </dd>
             <dt className="text-fg-muted">Valor estimado</dt>
             <dd>
-              <InlineField mono placeholder="Informar valor" value={selecionado.valor_estimado ? String(selecionado.valor_estimado) : ""} onSave={async (v) => {
+              <InlineField mono disabled={somenteLeitura} placeholder="Informar valor" exibir={(v) => formatBRL(Number(v))}
+                value={selecionado.valor_estimado ? String(selecionado.valor_estimado) : ""} onSave={async (v) => {
                 const valor = v.trim() ? Number(v.replace(/[^\d,]/g, "").replace(",", ".")) : null;
                 if (valor !== null && Number.isNaN(valor)) { toast.error("Valor inválido"); throw 0; }
                 const r = await chamar(atualizarNegocio(selecionado.id, { valor_estimado: valor }));
@@ -474,9 +559,9 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
                 setNegocios((xs) => xs.map((n) => (n.id === selecionado.id ? { ...n, valor_estimado: valor } : n)));
               }} />
             </dd>
-            <dt className="text-fg-muted">Probabilidade</dt>
+            <dt className="text-fg-muted">Chance de fechar</dt>
             <dd>
-              <InlineField mono value={String(selecionado.probabilidade)} onSave={async (v) => {
+              <InlineField mono disabled={somenteLeitura || fechado(selecionado.etapa)} exibir={(v) => `${v}%`} value={String(selecionado.probabilidade)} onSave={async (v) => {
                 const p = Math.max(0, Math.min(100, Math.round(Number(v))));
                 if (Number.isNaN(p)) { toast.error("Use um número de 0 a 100"); throw 0; }
                 const r = await chamar(atualizarNegocio(selecionado.id, { probabilidade: p }));
@@ -529,15 +614,23 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
             <dt className="text-fg-muted">Serviços</dt>
             <dd className="flex flex-wrap gap-1">{selecionado.servicos.map((s) => <Badge key={s} tone="outline">{SERVICOS[s]}</Badge>)}</dd>
             <dt className="text-fg-muted">Na etapa há</dt>
-            <dd className="num">{diasNaEtapa(selecionado)} dias</dd>
+            <dd className="num">{diasNaEtapa(selecionado) === 1 ? "1 dia" : `${diasNaEtapa(selecionado)} dias`}</dd>
             {!fechado(selecionado.etapa) && (<>
               <dt className="text-fg-muted">Próximo passo</dt>
-              <dd>{selecionado.respondido ? PROXIMO[selecionado.etapa] : <span className="text-danger">Responder o cliente (ainda sem resposta)</span>}</dd>
+              <dd>{selecionado.respondido ? PROXIMO[selecionado.etapa]
+                : <span className="text-danger">Responder o cliente{prazo(selecionado) ? ` (${prazo(selecionado)})` : ""}</span>}</dd>
+            </>)}
+            {(selecionado.contato_email || selecionado.contato_whatsapp) && (<>
+              <dt className="text-fg-muted">Contato</dt>
+              <dd className="flex min-w-0 flex-col gap-0.5">
+                {selecionado.contato_email && <a href={`mailto:${selecionado.contato_email}`} className="truncate hover:underline">{selecionado.contato_email}</a>}
+                {selecionado.contato_whatsapp && <a href={`https://wa.me/${selecionado.contato_whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="num hover:underline">{formatarTelefone(selecionado.contato_whatsapp)}</a>}
+              </dd>
             </>)}
             {selecionado.lead_id && (<>
-              <dt className="text-fg-muted">Pedido de origem</dt>
+              <dt className="text-fg-muted" title="Lá você responde, registra contato ou deixa nota">Pedido de origem</dt>
               <dd><Link href={`/leads?id=${selecionado.lead_id}`} className="inline-flex items-center gap-1 text-accent hover:underline">
-                <span className="num">{selecionado.protocolo ? formatProtocolo(selecionado.protocolo) : "abrir"}</span> na caixa de entrada <ArrowUpRight className="size-3.5" aria-hidden />
+                Abrir o pedido <span className="num">{selecionado.protocolo ? formatProtocolo(selecionado.protocolo) : ""}</span> <ArrowUpRight className="size-3.5" aria-hidden />
               </Link></dd>
             </>)}
           </dl>

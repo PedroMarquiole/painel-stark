@@ -11,7 +11,7 @@ import { InlineField } from "@/components/domain/inline-field";
 import { SlaBadge } from "@/components/domain/sla-badge";
 import { LinhaTempo } from "@/components/painel/linha-tempo";
 import { usePainel } from "@/components/painel/contexto";
-import { formatBRL, formatProtocolo } from "@/lib/utils";
+import { formatBRL, formatProtocolo, formatarTelefone } from "@/lib/utils";
 import { MOTIVOS_PERDA, ROTULO_ETAPA, SERVICOS } from "@/lib/rotulos";
 import type { Ficha } from "@/lib/dados/consultas";
 import type { Atividade } from "@/lib/dados/tipos";
@@ -60,17 +60,17 @@ export function Ficha360({ ficha }: { ficha: Ficha }) {
   }
 
   return (
-    <div className="grid max-w-[1200px] gap-5 px-4 pb-8 pt-2 sm:px-6 lg:grid-cols-[340px_1fr] lg:pl-1">
+    <div className="mx-auto grid max-w-[1440px] gap-5 px-4 pb-8 pt-2 sm:px-6 lg:grid-cols-[340px_1fr] lg:pl-1">
       <aside className="flex flex-col gap-4">
         <div>
           <h1 className="text-xl font-semibold">{c.nome}</h1>
-          <p className="text-sm text-fg-muted">{c.empresa ?? "Sem empresa"} · cliente desde {fmtDia.format(new Date(c.created_at))}</p>
+          <p className="text-sm text-fg-muted">{c.empresa ?? "Sem empresa"}, {ficha.negocios.some((n) => n.etapa === "ganho") ? "cliente" : "contato"} desde {fmtDia.format(new Date(c.created_at))}</p>
         </div>
         <Card className="p-5">
           <dl className="grid grid-cols-[96px_1fr] items-center gap-y-1 text-sm">
             <dt className="text-fg-muted">Nome</dt><dd className="min-w-0"><InlineField value={c.nome} onSave={salvar("nome")} /></dd>
             <dt className="text-fg-muted">E-mail</dt><dd className="min-w-0"><InlineField value={c.email ?? ""} onSave={salvar("email")} /></dd>
-            <dt className="text-fg-muted">WhatsApp</dt><dd className="min-w-0"><InlineField mono value={c.whatsapp ?? ""} onSave={salvar("whatsapp")} /></dd>
+            <dt className="text-fg-muted">WhatsApp</dt><dd className="min-w-0"><InlineField mono value={c.whatsapp ?? ""} exibir={formatarTelefone} onSave={salvar("whatsapp")} /></dd>
             <dt className="text-fg-muted">Cargo</dt><dd className="min-w-0"><InlineField value={c.cargo ?? ""} onSave={salvar("cargo")} /></dd>
             <dt className="text-fg-muted">Responsável</dt><dd className="py-1">{nomeDe(c.responsavel_id) ?? "—"}</dd>
           </dl>
@@ -102,7 +102,7 @@ export function Ficha360({ ficha }: { ficha: Ficha }) {
           <Card className="p-1.5">
             {ficha.negocios.length === 0 && <p className="p-3.5 text-sm text-fg-muted">Nenhum negócio.</p>}
             {ficha.negocios.map((n) => (
-              <Link key={n.id} href="/funil" className="flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm hover:bg-bloco-inset">
+              <Link key={n.id} href={`/funil?id=${n.id}`} className="flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm hover:bg-bloco-inset">
                 <span className="flex-1 truncate font-medium">{n.titulo}</span>
                 <Badge tone={n.etapa === "ganho" ? "success" : n.etapa === "perdido" ? "danger" : "neutral"} dot>
                   {ROTULO_ETAPA[n.etapa]}{n.etapa === "perdido" && n.motivo_perda ? ` · ${MOTIVOS_PERDA[n.motivo_perda]}` : ""}
@@ -114,7 +114,7 @@ export function Ficha360({ ficha }: { ficha: Ficha }) {
         </section>
 
         <section>
-          <h2 className="mb-2 text-md font-semibold">Pedidos pelo site</h2>
+          <h2 className="mb-2 text-md font-semibold">Pedidos</h2>
           <Card className="p-1.5">
             {ficha.pedidos.map((l) => (
               <Link key={l.id} href={`/leads?id=${l.id}`} className="flex flex-col gap-1.5 rounded-xl px-3.5 py-3 text-sm hover:bg-bloco-inset">

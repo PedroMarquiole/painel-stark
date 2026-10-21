@@ -44,6 +44,10 @@ export function Notificacoes({ iniciais }: { iniciais: Notificacao[] }) {
     };
   }, [offline, perfil.id, router]);
 
+  // Pedir permissão só quando a pessoa escolhe (não ao abrir o sino)
+  const [podeAvisar, setPodeAvisar] = React.useState(false);
+  React.useEffect(() => setPodeAvisar("Notification" in window && Notification.permission === "default"), []);
+
   return (
     <M.Root
       onOpenChange={(aberto) => {
@@ -51,7 +55,6 @@ export function Notificacoes({ iniciais }: { iniciais: Notificacao[] }) {
           setItens((xs) => xs.map((n) => ({ ...n, lida_em: n.lida_em ?? new Date().toISOString() })));
           marcarNotificacoesLidas().catch(() => undefined);
         }
-        if (aberto && "Notification" in window && Notification.permission === "default") Notification.requestPermission();
       }}
     >
       <M.Trigger asChild>
@@ -66,7 +69,14 @@ export function Notificacoes({ iniciais }: { iniciais: Notificacao[] }) {
       </M.Trigger>
       <M.Portal>
         <M.Content align="end" sideOffset={6} className="z-50 w-80 overflow-hidden rounded-2xl border border-border bg-raised shadow-pop data-[state=open]:animate-enter">
-          <p className="border-b border-border px-3 py-2 text-xs font-medium text-fg-muted">Notificações</p>
+          <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+            <p className="text-xs font-medium text-fg-muted">Notificações</p>
+            {podeAvisar && (
+              <button className="text-xs text-accent hover:underline" onClick={() => Notification.requestPermission().then(() => setPodeAvisar(false))}>
+                Avisar também no computador
+              </button>
+            )}
+          </div>
           <div className="max-h-96 overflow-y-auto">
             {itens.length === 0 && <p className="px-3 py-6 text-center text-sm text-fg-muted">Tudo em dia.</p>}
             {itens.map((n) => (

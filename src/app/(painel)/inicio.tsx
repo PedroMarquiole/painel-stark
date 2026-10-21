@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
-import { CircleDollarSign, Clock, Inbox, Target } from "lucide-react";
+import { ArrowUpRight, CircleDollarSign, Clock, Inbox, Target } from "lucide-react";
+import { useRelogio } from "@/hooks/use-now";
+import { estourado as ehEstourado, vencendo as ehVencendo } from "@/lib/pedidos";
 import { Funil, LinhaSemanal } from "@/components/charts/graficos";
 import { Sparkline } from "@/components/charts/sparkline";
 import { SlaBadge } from "@/components/domain/sla-badge";
@@ -16,7 +18,7 @@ function MedidorSla({ pct, delta, href }: { pct: number | null; delta?: number; 
   return (
     <Bloco href={href} className="items-center text-center">
       <div className="mb-1 flex w-full items-baseline justify-between">
-        <h2 className="text-md font-medium">Dentro do SLA</h2>
+        <h2 className="text-md font-medium">Dentro do prazo</h2>
         <span className="text-xs text-fg-subtle">meta: 1 dia útil</span>
       </div>
       <svg viewBox="0 0 200 112" className="mt-2 w-full max-w-[240px]" role="img"
@@ -80,7 +82,11 @@ function Fila({ leads, vencendo, estourados }: { leads: LeadInbox[]; vencendo: n
 
 export function Inicio({ k, nome, pendentes }: { k: Indicadores; nome: string; pendentes: LeadInbox[] }) {
   const serie = k.serie;
-  const { abertos, vencendo, estourados } = k.sla_agora;
+  // Mesma regra da caixa de entrada e do menu (os números batem entre as telas)
+  const agora = useRelogio();
+  const abertos = pendentes.length;
+  const vencendo = pendentes.filter((l) => ehVencendo(l, agora)).length;
+  const estourados = pendentes.filter((l) => ehEstourado(l, agora)).length;
   const resumo = abertos === 0
     ? `Nenhum pedido esperando resposta. Estes são os números dos últimos ${k.dias} dias.`
     : `${plural(abertos, "pedido espera", "pedidos esperam")} resposta${estourados ? `, ${estourados} com prazo estourado` : vencendo ? `, ${vencendo} vencendo em menos de 4h` : ""}.`;
@@ -98,12 +104,12 @@ export function Inicio({ k, nome, pendentes }: { k: Indicadores; nome: string; p
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Fila leads={pendentes} vencendo={vencendo} estourados={estourados} />
-        <MedidorSla pct={k.sla_pct.atual} delta={variacao(k.sla_pct)} href={todos} />
+        <MedidorSla pct={k.sla_pct.atual} delta={variacao(k.sla_pct)} href={`/relatorios?dias=${k.dias}`} />
 
         <Indicador Icone={Inbox} rotulo="Leads recebidos" valor={String(k.leads.atual ?? 0)} delta={variacao(k.leads)} href={todos}
           grafico={<MiniBarras valores={serie.map((s) => s.leads)} />} />
         <Indicador Icone={Clock} rotulo="1ª resposta (média)" valor={horas(k.primeira_resposta_horas.atual)} delta={variacao(k.primeira_resposta_horas)}
-          bomQuando="desce" href={todos} grafico={<Sparkline data={serie.map((s) => s.resposta_horas)} color="var(--c-series-2)" />} />
+          bomQuando="desce" href={`/relatorios?dias=${k.dias}`} grafico={<Sparkline data={serie.map((s) => s.resposta_horas)} color="var(--c-series-2)" />} />
         <Indicador Icone={CircleDollarSign} rotulo="Receita fechada" valor={mil(k.receita.atual)} delta={variacao(k.receita)} href="/funil"
           grafico={<Sparkline data={serie.map((s) => s.receita)} color="var(--c-series-3)" />} />
         <Bloco href="/funil" className="gap-4">
@@ -118,7 +124,7 @@ export function Inicio({ k, nome, pendentes }: { k: Indicadores; nome: string; p
         </Bloco>
 
         <Bloco className="sm:col-span-2">
-          <Titulo extra="por semana">Leads recebidos</Titulo>
+          <Titulo extra="últimas 8 semanas">Pedidos por semana</Titulo>
           <LinhaSemanal dados={serie} chave="leads" nome="Leads" />
         </Bloco>
         <Bloco className="sm:col-span-2">
@@ -126,8 +132,12 @@ export function Inicio({ k, nome, pendentes }: { k: Indicadores; nome: string; p
           <Funil etapas={k.funil} destacarFim />
         </Bloco>
       </div>
-      <Link href={`/relatorios?dias=${k.dias}`} className="self-start text-sm text-fg-muted hover:text-fg">
-        Origem dos leads, serviços, motivos de perda e tempo de resposta por semana estão em <span className="text-accent">Relatórios</span>.
+      <Link href={`/relatorios?dias=${k.dias}`} className="flex items-center justify-between gap-3 rounded-2xl bg-bloco px-5 py-4 shadow-bloco transition-transform hover:-translate-y-px">
+        <span>
+          <span className="block text-md font-medium">Relatórios</span>
+          <span className="text-sm text-fg-muted">De onde vêm os leads, serviços mais pedidos, motivos de perda e tempo de resposta.</span>
+        </span>
+        <ArrowUpRight className="size-5 shrink-0 text-fg-subtle" aria-hidden />
       </Link>
     </div>
   );

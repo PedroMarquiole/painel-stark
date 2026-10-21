@@ -13,6 +13,9 @@ Aplicado em 20/10/2026 pelo conector do Supabase, na ordem:
 | `painel_0008a_demo_registros` | `…0008_demonstracao.sql` (só a tabela) | A função `limpar_demonstracao()` **não** foi aplicada |
 | `painel_0009_indicadores` | `…0009_indicadores.sql` | KPIs da home |
 | `painel_0010a` … `painel_0010f` | `…0010_correcoes_revisao.sql` | Correções da revisão adversarial, aplicadas em 6 partes (sem nada removido) |
+| `painel_0011_resposta_move_funil` | `20261021000011_resposta_move_funil.sql` | 1ª resposta ao cliente move o negócio de Novo para Em triagem (e corrige quem já tinha sido respondido) |
+| `painel_0012_probabilidade_manual` | `20261021000012_probabilidade_manual.sql` | Mover o card não apaga a probabilidade ajustada à mão |
+| `painel_0013_vocabulario_prazo` | `20261021000013_vocabulario_prazo.sql` | "Prazo" em vez de "SLA" nos alertas e nomes; negócio ganho/perdido não gera alerta de prazo |
 
 Conferido depois da 0010: funções novas no lugar, `registrar_lead` só para `service_role`, fila de envio vazia; a `novo-pedido` publicada recusa serviço inválido (400) e nome vazio (400, vindo do banco), e a `outbox-sender` recusa chamada sem segredo (401).
 

@@ -97,6 +97,10 @@ export function negocios(): NegocioCard[] {
     created_at: iso(chegada),
     lead_id: `lead-${i}`,
     respondido: Boolean(p[8]) || p[6] !== "novo",
+    sla_vence_em: !p[8] && p[6] === "novo" ? leads()[i].sla_vence_em : null,
+    motivo_perda_detalhe: null,
+    contato_email: leads()[i].email,
+    contato_whatsapp: leads()[i].whatsapp,
   }));
 }
 
@@ -169,7 +173,7 @@ export function automacoes(): { regras: Automacao[]; execucoes: Execucao[] } {
   const nomes: [number, string, string, string, number][] = [
     [1, "lead_processar", "Processar lead novo", "lead.criado", 1], [2, "lead_confirmacao_cliente", "Confirmação ao cliente", "lead.criado", 1],
     [3, "lead_avisar_equipe", "Avisar a equipe", "lead.criado", 1], [4, "lead_atribuir", "Atribuir responsável", "lead.criado", 1],
-    [5, "sla_alerta", "Alerta de SLA", "sla.vencendo", 1], [6, "lead_followup", "Follow-up sem resposta", "lead.sem_resposta", 2],
+    [5, "sla_alerta", "Alerta de prazo", "sla.vencendo", 1], [6, "lead_followup", "Follow-up sem resposta", "lead.sem_resposta", 2],
     [7, "negocio_parado", "Negócio parado", "negocio.parado", 2], [8, "reuniao_lembretes", "Lembretes de reunião", "reuniao.agendada", 2],
     [9, "proposta_visualizada", "Proposta visualizada", "proposta.visualizada", 3], [10, "proposta_followup", "Follow-up de proposta", "proposta.sem_resposta", 3],
     [11, "proposta_aceita", "Proposta aceita", "proposta.aceita", 3], [12, "fatura_lembrete", "Lembrete de cobrança", "fatura.vencimento", 4],
@@ -183,7 +187,7 @@ export function automacoes(): { regras: Automacao[]; execucoes: Execucao[] } {
     })),
     execucoes: [
       ["Avisar a equipe", "sucesso", 4], ["Confirmação ao cliente", "sucesso", 4], ["Atribuir responsável", "sucesso", 4],
-      ["Processar lead novo", "sucesso", 4], ["Alerta de SLA", "sucesso", 95], ["Avisar a equipe", "sucesso", 1240],
+      ["Processar lead novo", "sucesso", 4], ["Alerta de prazo", "sucesso", 95], ["Avisar a equipe", "sucesso", 1240],
     ].map(([automacao, status, min], i) => ({
       id: `e${i}`, automacao: automacao as string, status: status as string, entidade_tipo: "lead", entidade_id: "lead-0",
       created_at: iso(agora - (min as number) * 60_000), resultado: {}, erro: null,

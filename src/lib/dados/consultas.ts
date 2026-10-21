@@ -126,15 +126,16 @@ export async function listarNegocios(): Promise<NegocioCard[]> {
   const d90 = diasAtras(120);
   const { data, error } = await sb
     .from("negocios")
-    .select("id, titulo, etapa, etapa_desde, ordem, valor_estimado, probabilidade, servicos, responsavel_id, contato_id, ganho_em, perdido_em, motivo_perda, previsao_fechamento, created_at, contato:contatos(nome, empresa:empresas(nome)), leads!leads_negocio_id_fkey(id, protocolo, primeira_resposta_em)")
+    .select("id, titulo, etapa, etapa_desde, ordem, valor_estimado, probabilidade, servicos, responsavel_id, contato_id, ganho_em, perdido_em, motivo_perda, motivo_perda_detalhe, previsao_fechamento, created_at, contato:contatos(nome, email, whatsapp, empresa:empresas(nome)), leads!leads_negocio_id_fkey(id, protocolo, primeira_resposta_em, sla_vence_em, status)")
     .or(`etapa.not.in.(ganho,perdido),ganho_em.gte.${d90},perdido_em.gte.${d90}`)
     .order("ordem")
     .order("etapa_desde", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []).map(({ contato, leads, ...n }) => {
-    const c = contato as unknown as { nome: string; empresa: { nome: string } | null } | null;
-    const pedidos = ((leads ?? []) as { id: string; protocolo: number; primeira_resposta_em: string | null }[])
+    const c = contato as unknown as { nome: string; email: string | null; whatsapp: string | null; empresa: { nome: string } | null } | null;
+    const pedidos = ((leads ?? []) as { id: string; protocolo: number; primeira_resposta_em: string | null; sla_vence_em: string; status: string }[])
       .sort((a, b) => a.protocolo - b.protocolo);
+    const pendente = pedidos.find((x) => !x.primeira_resposta_em && x.status !== "descartado");
     return {
       ...n,
       contato_nome: c?.nome ?? "—",
@@ -143,6 +144,9 @@ export async function listarNegocios(): Promise<NegocioCard[]> {
       lead_id: pedidos[0]?.id ?? null,
       // negócio criado à mão (sem pedido) conta como já em conversa
       respondido: pedidos.length === 0 || pedidos.some((x) => x.primeira_resposta_em),
+      sla_vence_em: pendente?.sla_vence_em ?? null,
+      contato_email: c?.email ?? null,
+      contato_whatsapp: c?.whatsapp ?? null,
     } as NegocioCard;
   });
 }

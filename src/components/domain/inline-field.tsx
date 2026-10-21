@@ -13,12 +13,18 @@ export function InlineField({
   placeholder = "Adicionar…",
   mono,
   className,
+  disabled = false,
+  exibir,
 }: {
   value: string;
   onSave: (v: string) => Promise<void> | void;
   placeholder?: string;
   mono?: boolean;
   className?: string;
+  /** Somente leitura (papel sem permissão): mostra o valor, sem editar. */
+  disabled?: boolean;
+  /** Como mostrar o valor fora da edição (ex.: "52000" → "R$ 52.000"). */
+  exibir?: (v: string) => string;
 }) {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(value);
@@ -66,17 +72,18 @@ export function InlineField({
       ) : (
         <button
           type="button"
+          disabled={disabled}
           onClick={() => {
             setDraft(shown);
             setEditing(true);
           }}
           className={cn(
-            "-mx-1.5 h-7 truncate rounded-md px-1.5 text-left text-sm transition-colors duration-150 hover:bg-overlay",
+            "-mx-1.5 h-7 truncate rounded-md px-1.5 text-left text-sm transition-colors duration-150 hover:bg-overlay disabled:cursor-default disabled:hover:bg-transparent",
             !shown && "text-fg-subtle",
             mono && "num",
           )}
         >
-          {shown || placeholder}
+          {shown ? (exibir ? exibir(shown) : shown) : disabled ? "—" : placeholder}
         </button>
       )}
       <span aria-live="polite" className="w-3.5 text-fg-subtle [&_svg]:size-3.5">
