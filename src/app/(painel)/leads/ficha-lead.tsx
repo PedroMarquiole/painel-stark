@@ -156,13 +156,13 @@ export function FichaLead({
 
           {/* Ações */}
           {modo === "email" && (
-            <form action={enviarEmail} className="flex flex-col gap-2 rounded-lg border border-accent/40 bg-surface p-3"
+            <form action={enviarEmail} className="flex flex-col gap-2 rounded-xl border border-accent/40 p-3"
               onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") (e.currentTarget as HTMLFormElement).requestSubmit(); }}>
               <div className="flex items-center gap-2 text-xs text-fg-muted">
                 <Mail className="size-3.5" aria-hidden /> Para <span className="text-fg">{lead?.contato.email ?? base.email}</span>
               </div>
               {lead?.contato.opt_out_email && (
-                <p className="rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
+                <p className="rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning">
                   Este cliente pediu para não receber e-mail. Se falou com ele por outro canal, use “Registrar contato”.
                 </p>
               )}
@@ -178,7 +178,7 @@ export function FichaLead({
             </form>
           )}
           {modo === "externo" && (
-            <form action={registrarExterno} className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
+            <form action={registrarExterno} className="flex flex-col gap-2 rounded-xl border border-border-strong p-3">
               <p className="text-xs text-fg-muted">Respondeu por fora do painel? Registre aqui. Conta como resposta e fecha o SLA.</p>
               <Select name="canal" defaultValue="whatsapp" aria-label="Canal">
                 <option value="whatsapp">WhatsApp (pelo celular)</option>
@@ -197,7 +197,7 @@ export function FichaLead({
             </form>
           )}
           {modo === "nota" && (
-            <form action={salvarNota} className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
+            <form action={salvarNota} className="flex flex-col gap-2 rounded-xl border border-border-strong p-3">
               <Textarea name="nota" autoFocus placeholder="Nota interna (o cliente não vê)" className="min-h-20" />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="ghost" size="sm" onClick={() => setModo(null)}>Cancelar</Button>
@@ -206,7 +206,7 @@ export function FichaLead({
             </form>
           )}
           {modo === "descartar" && (
-            <div className="flex flex-col gap-2 rounded-lg border border-danger/40 bg-surface p-3">
+            <div className="flex flex-col gap-2 rounded-xl border border-danger/40 p-3">
               <p className="text-sm">Por que descartar este pedido?</p>
               <div className="flex flex-wrap gap-1.5">
                 {MOTIVOS_DESCARTE.map((m) => (
@@ -233,7 +233,7 @@ export function FichaLead({
             </div>
           )}
 
-          <section>
+          <section className="rounded-xl bg-bloco-inset p-4">
             <h3 className="mb-1.5 text-xs font-medium text-fg-subtle">O que está custando mais tempo ou dinheiro</h3>
             <p className="whitespace-pre-wrap text-sm leading-6">{base.dor}</p>
           </section>

@@ -10,7 +10,7 @@ export function HoverCard({ trigger, children, className }: { trigger: React.Rea
         <HC.Content
           sideOffset={6}
           align="start"
-          className={cn("z-50 w-72 rounded-lg border border-border bg-raised p-card shadow-pop data-[state=open]:animate-enter", className)}
+          className={cn("z-50 w-72 rounded-xl border border-border bg-raised p-card shadow-pop data-[state=open]:animate-enter", className)}
         >
           {children}
         </HC.Content>

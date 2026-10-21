@@ -39,7 +39,7 @@ function Cartao({ n, limite, arrastando, onAbrir }: { n: NegocioCard; limite: nu
     <article
       onClick={onAbrir}
       className={cn(
-        "group rounded-lg border border-border bg-raised p-3 text-left transition-[border-color,box-shadow,transform] duration-150 ease-out hover:border-border-strong",
+        "group rounded-xl border border-transparent bg-bloco-inset p-3 text-left transition-[border-color,box-shadow,transform] duration-150 ease-out hover:border-border-strong",
         parado && "border-warning/40",
         arrastando && "rotate-[1.5deg] cursor-grabbing shadow-pop",
       )}
@@ -78,7 +78,7 @@ function Arrastavel({ n, limite, onAbrir, somenteLeitura }: { n: NegocioCard; li
         }
         listeners?.onKeyDown?.(e);
       }}
-      className={cn(somenteLeitura ? "cursor-pointer" : "cursor-grab touch-manipulation", "rounded-lg focus-visible:outline-2 focus-visible:outline-accent", isDragging && "opacity-30")}
+      className={cn(somenteLeitura ? "cursor-pointer" : "cursor-grab touch-manipulation", "rounded-xl focus-visible:outline-2 focus-visible:outline-accent", isDragging && "opacity-30")}
     >
       <Cartao n={n} limite={limite} onAbrir={onAbrir} />
     </div>
@@ -95,11 +95,11 @@ function Coluna({ e, itens, onAbrir, somenteLeitura }: { e: EtapaConfig; itens: 
       ref={setNodeRef}
       aria-label={e.rotulo}
       className={cn(
-        "flex w-[272px] shrink-0 flex-col rounded-lg bg-surface transition-colors duration-150",
+        "flex w-[272px] shrink-0 flex-col rounded-2xl bg-bloco shadow-bloco transition-colors duration-150",
         isOver && "bg-accent-soft ring-1 ring-accent/40",
       )}
     >
-      <header className="flex items-baseline gap-2 px-3 pb-2 pt-3">
+      <header className="flex items-baseline gap-2 px-4 pb-2.5 pt-4">
         <span className={cn("size-2 shrink-0 rounded-full", e.etapa === "ganho" ? "bg-success" : e.etapa === "perdido" ? "bg-danger" : "bg-fg-subtle")} aria-hidden />
         <h2 className="min-w-0 truncate font-sans text-sm font-medium" title={e.rotulo}>{e.rotulo}</h2>
         <span className="num text-xs text-fg-subtle">{itens.length}</span>
@@ -112,7 +112,7 @@ function Coluna({ e, itens, onAbrir, somenteLeitura }: { e: EtapaConfig; itens: 
       </header>
       <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
         {itens.map((n) => <Arrastavel key={n.id} n={n} limite={e.dias_alerta_parado} onAbrir={() => onAbrir(n.id)} somenteLeitura={somenteLeitura} />)}
-        {itens.length === 0 && <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-fg-subtle">{somenteLeitura ? "Vazio" : "Arraste um card para cá"}</p>}
+        {itens.length === 0 && <p className="rounded-xl border border-dashed border-border px-3 py-6 text-center text-xs text-fg-subtle">{somenteLeitura ? "Vazio" : "Arraste um card para cá"}</p>}
       </div>
     </section>
   );
@@ -209,24 +209,24 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
   const selecionado = negocios.find((n) => n.id === aberto) ?? null;
 
   return (
-    <div className="flex h-[calc(100dvh-48px)] flex-col">
-      <div className="flex flex-wrap items-end gap-x-8 gap-y-3 border-b border-border px-4 pb-4 pt-5 sm:px-6">
+    <div className="flex h-[calc(100dvh-64px)] flex-col max-lg:h-[calc(100dvh-64px-56px)]">
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-3 px-4 pb-1 pt-2 sm:px-6 lg:pl-1">
         <div>
           <h1 className="text-xl font-semibold">Funil</h1>
           <p className="text-sm text-fg-muted">
             {somenteLeitura ? "Visualização: quem move os cards é o comercial." : "Arraste os cards entre as etapas (Espaço pelo teclado). Toda mudança entra na linha do tempo."}
           </p>
         </div>
-        <dl className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        <dl className="flex flex-wrap gap-2 text-sm">
           {[
             ["Pipeline aberto", resumo.aberto],
             ["Ponderado (previsão)", resumo.ponderado],
             ["Previsão do mês", resumo.mes],
             ["Previsão do trimestre", resumo.tri],
           ].map(([r, v]) => (
-            <div key={r as string}>
+            <div key={r as string} className="rounded-2xl bg-bloco px-4 py-2.5 shadow-bloco">
               <dt className="text-xs text-fg-muted">{r}</dt>
-              <dd className="num text-md">{formatBRL(v as number)}</dd>
+              <dd className="num text-md font-medium">{formatBRL(v as number)}</dd>
             </div>
           ))}
         </dl>
@@ -235,7 +235,7 @@ export function Kanban({ iniciais, etapas }: { iniciais: NegocioCard[]; etapas: 
       </div>
 
       <DndContext id="funil" sensors={sensores} onDragStart={(e: DragStartEvent) => setArrastando(String(e.active.id))} onDragEnd={soltar} onDragCancel={() => setArrastando(null)}>
-        <div className="flex flex-1 gap-3 overflow-x-auto p-4 sm:px-6">
+        <div className="flex flex-1 gap-4 overflow-x-auto px-4 pb-4 pt-4 sm:px-6 lg:pl-1">
           {etapas.map((e) => <Coluna key={e.etapa} e={e} itens={porEtapa(e.etapa)} onAbrir={setAberto} somenteLeitura={somenteLeitura} />)}
         </div>
         <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(0.2,0.8,0.2,1)" }}>
@@ -378,7 +378,7 @@ function DialogPerda({ aberto, onCancelar, onConfirmar }: { aberto: boolean; onC
               role="radio"
               aria-checked={motivo === m}
               onClick={() => setMotivo(m)}
-              className={cn("h-8 rounded-md border px-3 text-sm transition-colors", motivo === m ? "border-accent bg-accent-soft" : "border-border text-fg-muted hover:border-border-strong")}
+              className={cn("h-8 rounded-full border px-3 text-sm transition-colors", motivo === m ? "border-accent bg-accent-soft" : "border-border text-fg-muted hover:border-border-strong")}
             >
               {MOTIVOS_PERDA[m]}
             </button>

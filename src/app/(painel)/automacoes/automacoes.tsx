@@ -38,19 +38,19 @@ export function Automacoes({ regras: iniciais, execucoes }: { regras: Automacao[
   }
 
   return (
-    <div className="mx-auto flex max-w-[1200px] flex-col gap-6 px-4 py-5 sm:px-6">
+    <div className="flex max-w-[1200px] flex-col gap-5 px-4 pb-8 pt-2 sm:px-6 lg:pl-1">
       <div>
         <h1 className="text-xl font-semibold">Automações</h1>
-        <p className="max-w-2xl text-sm text-fg-muted">
+        <p className="mt-1 max-w-2xl text-sm text-fg-muted">
           O sistema trabalha, a equipe decide. Cada regra roda uma vez por ocorrência (nada é enviado duas vezes), tenta de novo se der erro e respeita o opt-out do cliente.
           {!admin && " Só o admin liga e desliga regras."}
         </p>
       </div>
 
-      <Card className="overflow-x-auto">
+      <Card className="overflow-x-auto px-1 py-1.5">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs text-fg-subtle">
+            <tr className="border-b border-border text-left text-xs text-fg-subtle [&>th]:py-3">
               <th className="w-10 px-4 py-2 font-normal">#</th>
               <th className="px-2 py-2 font-normal">Regra</th>
               <th className="px-2 py-2 font-normal">Quando</th>
@@ -62,7 +62,7 @@ export function Automacoes({ regras: iniciais, execucoes }: { regras: Automacao[
             {regras.map((r) => {
               const disponivel = r.fase <= FASE_ATUAL;
               return (
-                <tr key={r.id} style={{ height: "var(--row-h)" }} className={cn("border-b border-border last:border-0", !disponivel && "text-fg-subtle")}>
+                <tr key={r.id} style={{ height: "var(--row-h)" }} className={cn("border-b border-border/70 last:border-0", !disponivel && "text-fg-subtle")}>
                   <td className="num px-4 text-xs text-fg-subtle">{r.numero}</td>
                   <td className="px-2 py-2">
                     <p className={cn("font-medium", !disponivel && "font-normal")}>{r.nome}</p>
@@ -94,13 +94,13 @@ export function Automacoes({ regras: iniciais, execucoes }: { regras: Automacao[
 
       <section>
         <h2 className="mb-3 text-md font-semibold">Últimas execuções</h2>
-        <Card>
+        <Card className="p-1.5">
           {execucoes.length === 0 && <p className="px-4 py-8 text-center text-sm text-fg-muted">Nenhuma execução ainda. Elas aparecem quando chega o primeiro pedido.</p>}
           <ul>
             {execucoes.map((e) => {
               const I = statusIcone[e.status as keyof typeof statusIcone] ?? Clock;
               return (
-                <li key={e.id} className="flex items-center gap-3 border-b border-border px-4 py-2 text-sm last:border-0">
+                <li key={e.id} className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm hover:bg-bloco-inset">
                   <I className={cn("size-4 shrink-0", e.status === "sucesso" ? "text-success" : e.status === "erro" ? "text-danger" : "text-fg-subtle")} aria-label={e.status} />
                   <span className="flex-1 truncate">{e.automacao}</span>
                   {e.entidade_tipo === "lead" && e.entidade_id && <a href={`/leads?id=${e.entidade_id}`} className="text-xs text-fg-muted hover:text-fg hover:underline">ver pedido</a>}

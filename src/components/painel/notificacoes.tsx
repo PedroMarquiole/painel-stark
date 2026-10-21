@@ -65,7 +65,7 @@ export function Notificacoes({ iniciais }: { iniciais: Notificacao[] }) {
         </Button>
       </M.Trigger>
       <M.Portal>
-        <M.Content align="end" sideOffset={6} className="z-50 w-80 overflow-hidden rounded-lg border border-border bg-raised shadow-pop data-[state=open]:animate-enter">
+        <M.Content align="end" sideOffset={6} className="z-50 w-80 overflow-hidden rounded-2xl border border-border bg-raised shadow-pop data-[state=open]:animate-enter">
           <p className="border-b border-border px-3 py-2 text-xs font-medium text-fg-muted">Notificações</p>
           <div className="max-h-96 overflow-y-auto">
             {itens.length === 0 && <p className="px-3 py-6 text-center text-sm text-fg-muted">Tudo em dia.</p>}

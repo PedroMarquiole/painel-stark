@@ -44,7 +44,7 @@ export function Drawer({
             }
           }}
           className={cn(
-            "fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-border bg-raised shadow-pop outline-none",
+            "fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-bloco shadow-pop outline-none sm:inset-y-2 sm:right-2 sm:w-[calc(100%-16px)] sm:rounded-2xl",
             "transition-transform duration-200 ease-out data-[state=open]:animate-[drawer-in_220ms_cubic-bezier(0.2,0.8,0.2,1)]",
           )}
         >

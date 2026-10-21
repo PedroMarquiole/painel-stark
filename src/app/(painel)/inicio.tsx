@@ -43,9 +43,9 @@ function Fila({ leads, vencendo, estourados }: { leads: LeadInbox[]; vencendo: n
     <Bloco className="sm:col-span-2 xl:col-span-3">
       <Titulo extra={leads.length > 0 && (
         <>
-          {estourados > 0 && <span className="text-danger">{estourados} estourado{estourados > 1 ? "s" : ""}</span>}
+          {estourados > 0 && <Link href="/leads?visao=estourados" className="text-danger hover:underline">{estourados} estourado{estourados > 1 ? "s" : ""}</Link>}
           {estourados > 0 && vencendo > 0 && ", "}
-          {vencendo > 0 && <span className="text-warning">{vencendo} vencendo</span>}
+          {vencendo > 0 && <Link href="/leads?visao=vencendo" className="text-warning hover:underline">{vencendo} vencendo</Link>}
         </>
       )}>
         Precisa de você agora

@@ -20,8 +20,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     if (data.user) {
       if (await perfilAtual()) redirect(destino);
       return (
-        <div className="flex flex-col gap-4 rounded-xl border border-border bg-raised p-6">
-          <h1 className="text-md font-semibold">Acesso desativado</h1>
+        <div className="flex flex-col gap-4 rounded-2xl bg-bloco p-7 shadow-bloco">
+          <h1 className="text-xl font-semibold">Acesso desativado</h1>
           <p className="text-sm text-fg-muted">A conta {data.user.email} não está ativa no Painel Stark. Fale com o admin da Stark.</p>
           <form action={sair}><Button type="submit">Sair</Button></form>
         </div>

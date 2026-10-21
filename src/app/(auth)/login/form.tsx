@@ -8,8 +8,8 @@ export function LoginForm({ voltar }: { voltar: string }) {
   const [modo, setModo] = useState<"entrar" | "esqueci">("entrar");
   const [estado, acao, enviando] = useActionState(modo === "entrar" ? entrar : esqueciSenha, undefined);
   return (
-    <form action={acao} className="flex flex-col gap-4 rounded-xl border border-border bg-raised p-6">
-      <h1 className="text-md font-semibold">{modo === "entrar" ? "Entrar" : "Criar nova senha"}</h1>
+    <form action={acao} className="flex flex-col gap-4 rounded-2xl bg-bloco p-7 shadow-bloco">
+      <h1 className="text-xl font-semibold">{modo === "entrar" ? "Entrar" : "Criar nova senha"}</h1>
       <input type="hidden" name="voltar" value={voltar} />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">E-mail</Label>

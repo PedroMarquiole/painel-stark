@@ -11,9 +11,9 @@ export function Toaster() {
       gap={8}
       toastOptions={{
         classNames: {
-          toast: "!bg-raised !border-border !text-fg !shadow-pop !rounded-lg !text-sm !font-sans",
+          toast: "!bg-raised !border-border !text-fg !shadow-pop !rounded-xl !text-sm !font-sans",
           description: "!text-fg-muted",
-          actionButton: "!bg-accent !text-accent-fg !rounded-md !font-medium",
+          actionButton: "!bg-accent !text-accent-fg !rounded-full !font-medium",
         },
       }}
     />

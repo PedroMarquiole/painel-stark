@@ -10,7 +10,7 @@ import { buscarGlobal } from "@/app/(painel)/acoes";
 import type { ResultadoBusca } from "@/lib/dados/tipos";
 
 const item =
-  "flex h-9 cursor-default items-center gap-2.5 rounded-md px-2.5 text-sm text-fg-muted data-[selected=true]:bg-overlay data-[selected=true]:text-fg [&_svg]:size-4";
+  "flex h-9 cursor-default items-center gap-2.5 rounded-lg px-2.5 text-sm text-fg-muted data-[selected=true]:bg-overlay data-[selected=true]:text-fg [&_svg]:size-4";
 
 export function Busca({ aberto, setAberto, novoLead }: { aberto: boolean; setAberto: (v: boolean) => void; novoLead: () => void }) {
   const router = useRouter();
@@ -42,7 +42,7 @@ export function Busca({ aberto, setAberto, novoLead }: { aberto: boolean; setAbe
     <D.Root open={aberto} onOpenChange={setAberto}>
       <D.Portal>
         <D.Overlay className="fixed inset-0 z-40 bg-canvas/60 backdrop-blur-[2px]" />
-        <D.Content className="fixed left-1/2 top-[14vh] z-50 w-[calc(100%-32px)] max-w-xl -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-raised shadow-pop data-[state=open]:animate-enter">
+        <D.Content className="fixed left-1/2 top-[14vh] z-50 w-[calc(100%-32px)] max-w-xl -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-raised shadow-pop data-[state=open]:animate-enter">
           <D.Title className="sr-only">Buscar</D.Title>
           <Command shouldFilter={false} loop label="Busca e comandos">
             <div className="flex items-center gap-2 border-b border-border px-4">

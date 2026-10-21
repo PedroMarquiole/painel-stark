@@ -222,13 +222,13 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
   const temFiltro = Boolean(servico || origem || situacao || resp || termo || dias);
 
   return (
-    <div className="flex h-[calc(100dvh-48px)] flex-col">
-      <div className="flex flex-col gap-3 border-b border-border px-4 pb-3 pt-5 sm:px-6">
+    <div className="flex h-[calc(100dvh-64px)] flex-col max-lg:h-[calc(100dvh-64px-56px)]">
+      <div className="flex flex-col gap-3 px-4 pb-4 pt-2 sm:px-6 lg:pl-1">
         <div className="flex items-baseline gap-3">
           <h1 className="text-xl font-semibold">Caixa de entrada</h1>
           <span className="num text-sm text-fg-muted">{contagem.abertos} sem resposta</span>
         </div>
-        <div className="-mx-1 flex gap-1 overflow-x-auto px-1" role="tablist" aria-label="Visões">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1"><div className="flex shrink-0 gap-0.5 rounded-full bg-bloco p-1 shadow-bloco" role="tablist" aria-label="Visões">
           {VISOES.map((v) => {
             const n = (contagem as Record<string, number>)[v.id];
             return (
@@ -238,8 +238,8 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
                 aria-selected={visao === v.id}
                 onClick={() => setVisao(v.id)}
                 className={cn(
-                  "flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm text-fg-muted transition-colors hover:bg-overlay hover:text-fg",
-                  visao === v.id && "bg-overlay text-fg",
+                  "flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm text-fg-muted transition-colors hover:text-fg",
+                  visao === v.id && "bg-invert text-invert-fg hover:text-invert-fg",
                 )}
               >
                 {v.rotulo}
@@ -247,8 +247,9 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
               </button>
             );
           })}
+          </div>
           {filtros.map((f) => (
-            <span key={f.id} className="group flex h-7 shrink-0 items-center rounded-md border border-dashed border-border-strong text-sm text-fg-muted">
+            <span key={f.id} className="group flex h-8 shrink-0 items-center rounded-full border border-dashed border-border-strong text-sm text-fg-muted">
               <button onClick={() => aplicar(f)} className="flex items-center gap-1.5 pl-2.5 pr-2 hover:text-fg"><Bookmark className="size-3.5" />{f.nome}</button>
               {f.profile_id === perfil.id && (
                 <button aria-label={`Remover filtro ${f.nome}`} onClick={() => remover(f)} className="-ml-1 pr-1.5 opacity-60 transition-opacity hover:text-fg hover:opacity-100">
@@ -283,7 +284,7 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
             {equipe.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
           </Select>
           {dias && (
-            <span className="flex h-7 items-center gap-1 rounded-md bg-accent-soft pl-2.5 pr-1 text-xs text-fg">
+            <span className="flex h-8 items-center gap-1 rounded-full bg-accent-soft pl-3 pr-1 text-xs text-fg">
               Chegaram nos últimos {dias} dias
               <button aria-label="Remover período" onClick={() => router.replace("/leads")} className="p-0.5 text-fg-muted hover:text-fg"><X className="size-3.5" /></button>
             </span>
@@ -293,8 +294,8 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
         </div>
       </div>
 
-      <div role="grid" aria-label="Pedidos" className="flex-1 overflow-y-auto">
-        <div role="row" className={cn(GRADE, "sticky top-0 z-10 hidden h-8 border-b border-border bg-canvas/95 px-4 text-xs text-fg-subtle backdrop-blur md:grid")}>
+      <div role="grid" aria-label="Pedidos" className="mx-4 mb-4 min-h-0 overflow-y-auto rounded-2xl bg-bloco shadow-bloco sm:mx-6 lg:ml-1">
+        <div role="row" className={cn(GRADE, "sticky top-0 z-10 hidden h-10 border-b border-border bg-bloco/95 px-5 text-xs text-fg-subtle backdrop-blur md:grid")}>
           <span>Protocolo</span><span>Nome</span><span>Serviços</span><span>O que precisa</span><span>Origem</span><span>Chegou</span><span>SLA</span><span />
         </div>
         {lista.map((l) => (
@@ -308,7 +309,7 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
             action={temFiltro ? <Button size="sm" onClick={limpar}>Limpar filtros</Button> : visao === "abertos" ? <Button size="sm" onClick={() => router.push("/funil")}>Ver o funil</Button> : undefined}
           />
         )}
-        <p className="hidden px-4 py-3 text-xs text-fg-subtle md:block">
+        <p className="hidden px-5 py-3 text-xs text-fg-subtle md:block">
           <Kbd>J</Kbd> <Kbd>K</Kbd> navegam · <Kbd>Enter</Kbd> abre · <Kbd>E</Kbd> responde · <Kbd>D</Kbd> descarta · <Kbd>?</Kbd> todos os atalhos
         </p>
       </div>

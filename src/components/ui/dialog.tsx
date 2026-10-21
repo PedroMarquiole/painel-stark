@@ -17,7 +17,7 @@ export function Dialog({
         <D.Overlay className="fixed inset-0 z-40 bg-canvas/60 backdrop-blur-[2px] data-[state=open]:animate-[fade_150ms_ease-out]" />
         <D.Content
           className={cn(
-            "fixed left-1/2 top-[12vh] z-50 flex max-h-[80vh] w-[calc(100%-32px)] max-w-lg -translate-x-1/2 flex-col rounded-xl border border-border bg-raised shadow-pop outline-none data-[state=open]:animate-enter",
+            "fixed left-1/2 top-[12vh] z-50 flex max-h-[80vh] w-[calc(100%-32px)] max-w-lg -translate-x-1/2 flex-col rounded-2xl bg-bloco shadow-pop outline-none data-[state=open]:animate-enter",
             className,
           )}
         >
@@ -39,7 +39,7 @@ export function Dialog({
 export const Select = ({ className, ...p }: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <select
     className={cn(
-      "h-8 rounded-md border border-border bg-canvas/60 px-2 text-sm text-fg transition-colors hover:border-border-strong focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/25",
+      "h-8 rounded-lg border border-transparent bg-bloco-inset px-2 text-sm text-fg transition-colors hover:border-border-strong focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/25",
       className,
     )}
     {...p}
