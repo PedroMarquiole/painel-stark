@@ -105,7 +105,7 @@ export async function moverNegocio(id: string, etapa: Etapa, ordem: number, moti
 export async function desfazerMovimento(antes: NegocioCard) {
   return executar(async (sb) => {
     const r = await sb.from("negocios").update({
-      etapa: antes.etapa, ordem: antes.ordem, motivo_perda: antes.motivo_perda,
+      etapa: antes.etapa, ordem: antes.ordem, motivo_perda: antes.motivo_perda, motivo_perda_detalhe: antes.motivo_perda_detalhe,
     }).eq("id", antes.id).select("id");
     if (r.error || !r.data?.length) return r;
     return sb.from("negocios").update({

@@ -88,6 +88,24 @@ select cron.schedule('stark-limpar-rate-limit', '17 3 * * *',
 - [ ] "Registrar contato" com horário no passado → SLA fecha pelo horário informado
 - [ ] Conta com papel Projetos: vê leads e funil, mas não responde, não descarta e não move cards
 
+## Organização (21/10)
+
+O caminho do pedido ficou sempre o mesmo, em todas as telas:
+
+```
+Novos (prazo correndo) → você responde → Em conversa (o negócio anda para Em triagem no funil) → Arquivados (ganho, perdido ou descartado)
+```
+
+- **Caixa de entrada:** abas Novos · Em conversa · Arquivados; filtros rápidos Vencendo em 4h, Prazo estourado e Só os meus. Ao responder, o aviso diz para onde o pedido foi e tem "Ver". Cada pedido respondido mostra a etapa do funil.
+- **Funil:** Ganho e Perdido recolhidos no fim; busca, filtros e ordenação; cartão com dias na etapa, próximo passo e "Sem resposta, prazo vence em…"; visão em lista ordenável; `/funil?id=…` abre o negócio.
+- **Coerência:** Início, menu e caixa de entrada contam os pedidos pela mesma regra; "prazo" no lugar de "SLA"; ⌘K encontra comandos; menu do celular acessível pelo teclado.
+
+Checklist extra:
+- [ ] Responder um pedido em Novos → aviso "foi para Em conversa" → "Ver" leva até ele; no Funil o card está em Em triagem
+- [ ] Clicar duas vezes rápido em "Enviar e-mail" manda um e-mail só
+- [ ] Funil: abrir/recolher Ganho e Perdido; arrastar um card para Ganho recolhido; trocar para Lista e ordenar por Valor
+- [ ] Ajustar a chance de fechar de um negócio e mover o card: a chance ajustada continua
+
 ## Limitações conhecidas
 
 - **WhatsApp**: não há provedor contratado; a interface está pronta (`WHATSAPP_PROVIDER`), e a ficha tem "Registrar contato" para respostas feitas pelo celular.

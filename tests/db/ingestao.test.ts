@@ -254,6 +254,19 @@ describe("painel: responder e criar manualmente", () => {
     expect(m.rows).toHaveLength(1);
   });
 
+  it("1ª resposta anda o funil de Novo para Em triagem (uma vez, com registro)", async () => {
+    const r = await registrar({ ...base, email: "funil@exemplo.com", whatsapp: "11977776666" });
+    await asUser(db, RAFA, () => db.query(`select responder_lead($1, 'email', 'Oi', 'Vamos conversar?')`, [r.lead_id]));
+    const n = await db.query<{ etapa: string }>(`select etapa from negocios where id = $1`, [r.negocio_id]);
+    expect(n.rows[0].etapa).toBe("triagem");
+    const a = await db.query(`select 1 from atividades where negocio_id = $1 and tipo = 'mudanca_etapa' and meta ->> 'para' = 'triagem'`, [r.negocio_id]);
+    expect(a.rows).toHaveLength(1);
+    // Segunda resposta não mexe no funil (o card pode já ter avançado)
+    await db.query(`update negocios set etapa = 'proposta' where id = $1`, [r.negocio_id]);
+    await asUser(db, RAFA, () => db.query(`select responder_lead($1, 'email', 'De novo', 'Mais uma')`, [r.lead_id]));
+    expect((await db.query<{ etapa: string }>(`select etapa from negocios where id = $1`, [r.negocio_id])).rows[0].etapa).toBe("proposta");
+  });
+
   it("responder_lead: Projetos/Dev não envia; cliente com opt-out é erro e não fecha o SLA", async () => {
     const r = await registrar(base);
     const DEV = "00000000-0000-0000-0000-0000000000d9";

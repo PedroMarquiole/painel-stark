@@ -57,8 +57,7 @@ export const MOTIVOS_DESCARTE = [
 ] as const;
 
 export const ORIGENS: Record<string, string> = {
-  site: "Site (direto)",
-  direto: "Direto",
+  site: "Direto (site)",
   google: "Google",
   instagram: "Instagram",
   linkedin: "LinkedIn",
@@ -66,6 +65,8 @@ export const ORIGENS: Record<string, string> = {
   campanha: "Campanha paga",
   outro: "Outro",
 };
-export const rotuloOrigem = (o?: string | null) => (o ? (ORIGENS[o] ?? o) : "Direto");
+/** "site", "direto" e sem origem são a mesma coisa: a pessoa chegou ao site sozinha. */
+export const chaveOrigem = (o?: string | null) => (!o || o === "direto" ? "site" : o);
+export const rotuloOrigem = (o?: string | null) => ORIGENS[chaveOrigem(o)] ?? o ?? ORIGENS.site;
 
 export const PAPEIS: Record<Papel, string> = { admin: "Admin", comercial: "Comercial", projetos: "Projetos/Dev" };

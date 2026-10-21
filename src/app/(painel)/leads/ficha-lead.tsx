@@ -14,7 +14,7 @@ import { InlineField } from "@/components/domain/inline-field";
 import { SlaBadge } from "@/components/domain/sla-badge";
 import { LinhaTempo } from "@/components/painel/linha-tempo";
 import { usePainel } from "@/components/painel/contexto";
-import { formatBRL, formatProtocolo } from "@/lib/utils";
+import { formatBRL, formatProtocolo, formatarTelefone } from "@/lib/utils";
 import { chamar } from "@/lib/chamar";
 import { MOTIVOS_DESCARTE, ROTULO_ETAPA, SERVICOS, SITUACOES, rotuloOrigem } from "@/lib/rotulos";
 import type { Atividade, LeadDetalhe, LeadInbox } from "@/lib/dados/tipos";
@@ -47,6 +47,21 @@ export function FichaLead({
   const [lead, setLead] = React.useState<LeadDetalhe | null>(null);
   const [erro, setErro] = React.useState(false);
   const [modo, setModo] = React.useState<"email" | "externo" | "nota" | "descartar" | null>(null);
+  // Trava contra clique duplo. A ref bloqueia na hora; o estado só serve para o botão mostrar "Enviando…"
+  const ocupado = React.useRef(false);
+  const [enviando, setEnviando] = React.useState(false);
+  const travar = async (fn: () => Promise<void>) => {
+    if (ocupado.current) return;
+    ocupado.current = true;
+    setEnviando(true);
+    try { await fn(); } finally { ocupado.current = false; setEnviando(false); }
+  };
+  /** Envia o formulário fora de transição (o botão desabilita no mesmo clique). */
+  const aoEnviar = (fn: (f: FormData) => Promise<void>) => (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const dados = new FormData(e.currentTarget);
+    void travar(() => fn(dados));
+  };
   const respostaRef = React.useRef<HTMLTextAreaElement>(null);
 
   React.useEffect(() => {
@@ -72,8 +87,22 @@ export function FichaLead({
   }, [comando, aberto]);
 
   const base = lead ?? resumo;
-  const adicionarAtividade = (a: Omit<Atividade, "id" | "ocorreu_em" | "autor_nome">) =>
-    setLead((l) => l && { ...l, atividades: [{ ...a, id: crypto.randomUUID(), ocorreu_em: new Date().toISOString(), autor_nome: perfil.nome }, ...l.atividades] });
+  const adicionarAtividade = (a: Omit<Atividade, "id" | "ocorreu_em" | "autor_nome">, quando = new Date().toISOString()) =>
+    setLead((l) => l && {
+      ...l,
+      atividades: [{ ...a, id: crypto.randomUUID(), ocorreu_em: quando, autor_nome: perfil.nome }, ...l.atividades]
+        .sort((x, y) => +new Date(y.ocorreu_em) - +new Date(x.ocorreu_em)),
+    });
+  /** 1ª resposta: o prazo fecha e, se o negócio estava em Novo, ele anda para Em triagem (igual ao banco). */
+  const marcarRespondido = (momento: string) => {
+    if (!base) return;
+    if (!base.primeira_resposta_em) onAtualizar(base.id, { primeira_resposta_em: momento, status: "em_atendimento" });
+    setLead((l) => l && {
+      ...l,
+      primeira_resposta_em: l.primeira_resposta_em ?? momento,
+      negocio: l.negocio && !l.primeira_resposta_em && l.negocio.etapa === "novo" ? { ...l.negocio, etapa: "triagem" } : l.negocio,
+    });
+  };
 
   async function enviarEmail(form: FormData) {
     if (!base) return;
@@ -86,10 +115,10 @@ export function FichaLead({
     }
     const agora = new Date().toISOString();
     adicionarAtividade({ tipo: "mensagem", canal: "email", direcao: "saida", automatica: false, titulo: assunto || "E-mail enviado", corpo });
-    if (!base.primeira_resposta_em) onAtualizar(base.id, { primeira_resposta_em: agora, status: "em_atendimento" });
-    setLead((l) => l && { ...l, primeira_resposta_em: l.primeira_resposta_em ?? agora });
+    marcarRespondido(agora);
     setModo(null);
-    toast.success("E-mail na fila de envio", { description: "Sai em segundos. SLA marcado como respondido." });
+    // Na 1ª resposta, a caixa de entrada avisa para onde o pedido foi
+    if (base.primeira_resposta_em) toast.success("E-mail enviado", { description: "Sai em segundos e aparece na linha do tempo." });
   }
 
   async function registrarExterno(form: FormData) {
@@ -103,13 +132,17 @@ export function FichaLead({
       toast.error(r.erro);
       return;
     }
-    const agora = new Date().toISOString();
     const momento = quando ?? new Date().toISOString();
-    adicionarAtividade({ tipo: canal === "whatsapp" ? "mensagem" : canal, canal, direcao: "saida", automatica: false, titulo: { whatsapp: "Respondeu pelo WhatsApp", ligacao: "Ligação", reuniao: "Reunião" }[canal], corpo: resumoTxt || null });
-    if (!base.primeira_resposta_em && new Date(momento) >= new Date(base.created_at)) onAtualizar(base.id, { primeira_resposta_em: momento, status: "em_atendimento" });
-    setLead((l) => l && { ...l, primeira_resposta_em: l.primeira_resposta_em ?? momento });
+    adicionarAtividade({ tipo: canal === "whatsapp" ? "mensagem" : canal, canal, direcao: "saida", automatica: false, titulo: { whatsapp: "Respondeu pelo WhatsApp", ligacao: "Ligação", reuniao: "Reunião" }[canal], corpo: resumoTxt || null }, momento);
     setModo(null);
-    toast.success("Contato registrado");
+    // Contato de antes do pedido chegar não responde este pedido (o banco faz o mesmo)
+    if (new Date(momento) < new Date(base.created_at)) {
+      if (!base.primeira_resposta_em) toast.warning("Contato registrado, mas não conta como resposta", { description: "A data é anterior à chegada do pedido. O prazo continua correndo." });
+      else toast.success("Contato registrado");
+      return;
+    }
+    marcarRespondido(momento);
+    if (base.primeira_resposta_em) toast.success("Contato registrado");
   }
 
   async function salvarNota(form: FormData) {
@@ -124,6 +157,9 @@ export function FichaLead({
     setModo(null);
   }
 
+  const etapaAtual = lead?.negocio?.etapa ?? base?.etapa ?? null;
+  const arquivadoComo = !base ? null : base.status === "descartado" ? "Descartado"
+    : base.status === "convertido" || etapaAtual === "ganho" ? "Ganho" : etapaAtual === "perdido" ? "Perdido" : null;
   const primeiroNome = base?.nome.split(" ")[0] ?? "";
   const agoraLocal = new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 16); // datetime-local em São Paulo (UTC−3)
   const textoPadrao = `Olá, ${primeiroNome}!\n\nObrigado por contar o que está acontecendo. Pelo que você descreveu, dá para resolver isso de um jeito bem mais simples.\n\nPodemos marcar uma conversa de 30 minutos esta semana para entender os detalhes? Me diga dois horários que funcionam para você.\n\n${perfil.nome}\nStark — Software sob medida`;
@@ -149,14 +185,21 @@ export function FichaLead({
       {base && (
         <div className="flex flex-col gap-6">
           <div className="flex flex-wrap items-center gap-2">
-            <SlaBadge deadline={new Date(base.sla_vence_em)} respondedAt={base.primeira_resposta_em ? new Date(base.primeira_resposta_em) : null} />
-            {base.status === "descartado" && <Badge tone="danger" dot>Descartado{lead?.motivo_descarte ? ` · ${lead.motivo_descarte}` : ""}</Badge>}
+            {arquivadoComo ? (
+              <Badge tone={arquivadoComo === "Ganho" ? "success" : "danger"} dot title="Está em Arquivados na caixa de entrada">
+                Arquivado: {arquivadoComo}{base.status === "descartado" && lead?.motivo_descarte ? ` (${lead.motivo_descarte})` : ""}
+              </Badge>
+            ) : base.primeira_resposta_em ? (
+              <Badge tone="info" dot title="Respondido. Está em Em conversa na caixa de entrada">Em conversa{etapaAtual ? `, funil: ${ROTULO_ETAPA[etapaAtual]}` : ""}</Badge>
+            ) : (
+              <SlaBadge extenso deadline={new Date(base.sla_vence_em)} />
+            )}
             {base.servicos.map((s) => <Badge key={s} tone="outline">{SERVICOS[s]}</Badge>)}
           </div>
 
           {/* Ações */}
           {modo === "email" && (
-            <form action={enviarEmail} className="flex flex-col gap-2 rounded-xl border border-accent/40 p-3"
+            <form onSubmit={aoEnviar(enviarEmail)} className="flex flex-col gap-2 rounded-xl border border-accent/40 p-3"
               onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") (e.currentTarget as HTMLFormElement).requestSubmit(); }}>
               <div className="flex items-center gap-2 text-xs text-fg-muted">
                 <Mail className="size-3.5" aria-hidden /> Para <span className="text-fg">{lead?.contato.email ?? base.email}</span>
@@ -172,14 +215,14 @@ export function FichaLead({
                 <span className="text-xs text-fg-subtle">⌘ Enter envia</span>
                 <div className="flex gap-2">
                   <Button type="button" variant="ghost" size="sm" onClick={() => setModo(null)}>Cancelar</Button>
-                  <Button type="submit" variant="primary" size="sm" disabled={lead?.contato.opt_out_email}><Send /> Enviar e-mail</Button>
+                  <Button type="submit" variant="primary" size="sm" disabled={lead?.contato.opt_out_email || enviando}><Send /> {enviando ? "Enviando…" : "Enviar e-mail"}</Button>
                 </div>
               </div>
             </form>
           )}
           {modo === "externo" && (
-            <form action={registrarExterno} className="flex flex-col gap-2 rounded-xl border border-border-strong p-3">
-              <p className="text-xs text-fg-muted">Respondeu por fora do painel? Registre aqui. Conta como resposta e fecha o SLA.</p>
+            <form onSubmit={aoEnviar(registrarExterno)} className="flex flex-col gap-2 rounded-xl border border-border-strong p-3">
+              <p className="text-xs text-fg-muted">Respondeu por fora do painel? Registre aqui. Conta como resposta e fecha o prazo.</p>
               <Select name="canal" defaultValue="whatsapp" aria-label="Canal">
                 <option value="whatsapp">WhatsApp (pelo celular)</option>
                 <option value="ligacao">Ligação</option>
@@ -192,16 +235,16 @@ export function FichaLead({
               <Textarea name="resumo" placeholder="Resumo do que foi conversado (opcional)" className="min-h-20" />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="ghost" size="sm" onClick={() => setModo(null)}>Cancelar</Button>
-                <Button type="submit" size="sm">Registrar</Button>
+                <Button type="submit" size="sm" disabled={enviando}>{enviando ? "Registrando…" : "Registrar"}</Button>
               </div>
             </form>
           )}
           {modo === "nota" && (
-            <form action={salvarNota} className="flex flex-col gap-2 rounded-xl border border-border-strong p-3">
+            <form onSubmit={aoEnviar(salvarNota)} className="flex flex-col gap-2 rounded-xl border border-border-strong p-3">
               <Textarea name="nota" autoFocus placeholder="Nota interna (o cliente não vê)" className="min-h-20" />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="ghost" size="sm" onClick={() => setModo(null)}>Cancelar</Button>
-                <Button type="submit" size="sm">Salvar nota</Button>
+                <Button type="submit" size="sm" disabled={enviando}>{enviando ? "Salvando…" : "Salvar nota"}</Button>
               </div>
             </form>
           )}
@@ -209,10 +252,11 @@ export function FichaLead({
             <div className="flex flex-col gap-2 rounded-xl border border-danger/40 p-3">
               <p className="text-sm">Por que descartar este pedido?</p>
               <div className="flex flex-wrap gap-1.5">
-                {MOTIVOS_DESCARTE.map((m) => (
-                  <Button key={m} size="sm" onClick={() => { if (resumo) onDescartar(resumo, m); setModo(null); }}>{m}</Button>
+                {MOTIVOS_DESCARTE.map((m, i) => (
+                  <Button key={m} size="sm" autoFocus={i === 0} onClick={() => { if (resumo) onDescartar(resumo, m); setModo(null); }}>{m}</Button>
                 ))}
               </div>
+              <div className="flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => setModo(null)}>Cancelar</Button></div>
             </div>
           )}
           {!modo && !podeAgir && (
@@ -228,7 +272,7 @@ export function FichaLead({
                 <Button size="sm" onClick={() => setModo("externo")}><MessageCircle /> Registrar contato</Button>
               </Tooltip>
               <Button size="sm" onClick={() => setModo("nota")}>Nota</Button>
-              {base.status !== "descartado" && <Button size="sm" variant="danger" onClick={() => setModo("descartar")}><Trash2 /> Descartar</Button>}
+              {!arquivadoComo && <Button size="sm" variant="danger" onClick={() => setModo("descartar")}><Trash2 /> Descartar</Button>}
               <Button size="sm" variant="ghost" asChild><Link href={`/clientes/${base.contato_id}`}>Ficha do cliente <ArrowUpRight /></Link></Button>
             </div>
           )}
@@ -268,7 +312,7 @@ export function FichaLead({
                 <Campo rotulo="E-mail"><InlineField value={lead.contato.email ?? ""} onSave={async (v) => { const r = await chamar(atualizarContato(lead.contato.id, { email: v })); if (!r.ok) { toast.error(r.erro); throw 0; } }} /></Campo>
                 <Campo rotulo="WhatsApp">
                   <span className="flex items-center gap-1">
-                    <InlineField mono value={lead.contato.whatsapp ?? ""} onSave={async (v) => { const r = await chamar(atualizarContato(lead.contato.id, { whatsapp: v })); if (!r.ok) { toast.error(r.erro); throw 0; } }} />
+                    <InlineField mono exibir={formatarTelefone} value={lead.contato.whatsapp ?? ""} onSave={async (v) => { const r = await chamar(atualizarContato(lead.contato.id, { whatsapp: v })); if (!r.ok) { toast.error(r.erro); throw 0; } }} />
                     {lead.contato.whatsapp && (
                       <Button variant="ghost" size="icon-sm" asChild aria-label="Abrir conversa no WhatsApp">
                         <a href={`https://wa.me/${lead.contato.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá, ${primeiroNome}! Aqui é ${perfil.nome.split(" ")[0]}, da Stark.`)}`} target="_blank" rel="noreferrer"><Phone /></a>
@@ -288,7 +332,10 @@ export function FichaLead({
                 {(lead.utm.medium || lead.utm.campaign) && <Campo rotulo="Campanha"><span className="num text-xs">{[lead.utm.source, lead.utm.medium, lead.utm.campaign].filter(Boolean).join(" / ")}</span></Campo>}
                 {lead.negocio && (
                   <Campo rotulo="Negócio">
-                    <Link href="/funil" className="hover:underline">{ROTULO_ETAPA[lead.negocio.etapa]}{lead.negocio.valor_estimado ? <span className="num"> · {formatBRL(lead.negocio.valor_estimado)}</span> : ""}</Link>
+                    <Link href={`/funil?id=${lead.negocio.id}`} className="inline-flex items-center gap-1 text-accent hover:underline">
+                      {ROTULO_ETAPA[lead.negocio.etapa]}{lead.negocio.valor_estimado ? <span className="num"> · {formatBRL(lead.negocio.valor_estimado)}</span> : ""}
+                      <ArrowUpRight className="size-3.5" aria-hidden /> <span className="sr-only">ver no funil</span>
+                    </Link>
                   </Campo>
                 )}
                 <Campo rotulo="LGPD">{lead.consentimento_lgpd_em ? <span className="text-xs text-fg-muted">Aceite em {fmtData.format(new Date(lead.consentimento_lgpd_em))}</span> : <span className="text-xs text-fg-subtle">Sem registro (criado manualmente)</span>}</Campo>

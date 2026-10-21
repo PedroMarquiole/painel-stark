@@ -9,9 +9,11 @@ export function Toaster() {
       theme={(resolvedTheme as "light" | "dark") ?? "dark"}
       position="bottom-right"
       gap={8}
+      // Avisos continuam clicáveis com a ficha (modal) aberta: o Radix desliga cliques fora dela
+      style={{ pointerEvents: "auto", zIndex: 60 }}
       toastOptions={{
         classNames: {
-          toast: "!bg-raised !border-border !text-fg !shadow-pop !rounded-xl !text-sm !font-sans",
+          toast: "pointer-events-auto !bg-raised !border-border !text-fg !shadow-pop !rounded-xl !text-sm !font-sans",
           description: "!text-fg-muted",
           actionButton: "!bg-accent !text-accent-fg !rounded-full !font-medium",
         },

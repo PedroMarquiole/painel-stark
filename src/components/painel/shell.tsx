@@ -38,6 +38,14 @@ export function Shell({
   const [novo, setNovo] = React.useState(false);
   const [atalhos, setAtalhos] = React.useState(false);
   const [menuMobile, setMenuMobile] = React.useState(false);
+  const formSair = React.useRef<HTMLFormElement>(null);
+  // Gaveta do celular: Esc fecha
+  React.useEffect(() => {
+    if (!menuMobile) return;
+    const h = (e: KeyboardEvent) => e.key === "Escape" && setMenuMobile(false);
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [menuMobile]);
 
   const nomes = React.useMemo(() => new Map(equipe.map((p) => [p.id, p.nome])), [equipe]);
   const ctx = React.useMemo(
@@ -118,14 +126,15 @@ export function Shell({
           <M.Item onSelect={() => setAtalhos(true)} className="flex h-8 cursor-default items-center justify-between rounded-md px-2 text-sm text-fg-muted outline-none data-[highlighted]:bg-overlay data-[highlighted]:text-fg">
             Atalhos de teclado <Kbd>?</Kbd>
           </M.Item>
-          <M.Item asChild className="flex h-8 cursor-default items-center gap-2 rounded-md px-2 text-sm text-fg-muted outline-none data-[highlighted]:bg-overlay data-[highlighted]:text-fg [&_svg]:size-4">
-            <Link href="/design"><LayoutTemplate aria-hidden /> Design system</Link>
+          {perfil.papel === "admin" && (
+            <M.Item asChild className="flex h-8 cursor-default items-center gap-2 rounded-md px-2 text-sm text-fg-muted outline-none data-[highlighted]:bg-overlay data-[highlighted]:text-fg [&_svg]:size-4">
+              <Link href="/design"><LayoutTemplate aria-hidden /> Design system</Link>
+            </M.Item>
+          )}
+          <form ref={formSair} action={sair} />
+          <M.Item onSelect={() => formSair.current?.requestSubmit()} className="flex h-8 cursor-default items-center gap-2 rounded-md px-2 text-sm text-fg-muted outline-none data-[highlighted]:bg-overlay data-[highlighted]:text-fg [&_svg]:size-4">
+            <LogOut aria-hidden /> Sair
           </M.Item>
-          <form action={sair}>
-            <button className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm text-fg-muted hover:bg-overlay hover:text-fg [&_svg]:size-4">
-              <LogOut aria-hidden /> Sair
-            </button>
-          </form>
         </M.Content>
       </M.Portal>
     </M.Root>
@@ -168,10 +177,14 @@ export function Shell({
         </aside>
 
         {/* Gaveta (celular) */}
-        <aside className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col gap-4 bg-surface p-4 transition-transform duration-200 ease-out lg:hidden",
-          menuMobile ? "translate-x-0 shadow-pop" : "-translate-x-full",
-        )}>
+        <aside
+          aria-label="Menu"
+          // Fechada: fora do foco do teclado e dos leitores de tela
+          inert={!menuMobile}
+          className={cn(
+            "fixed inset-y-0 left-0 z-40 flex w-64 flex-col gap-4 bg-surface p-4 transition-transform duration-200 ease-out lg:hidden",
+            menuMobile ? "translate-x-0 shadow-pop" : "-translate-x-full",
+          )}>
           <Link href="/" onClick={() => setMenuMobile(false)} className="flex items-center gap-2.5 px-1">
             <img src="/logo-simbolo.svg" alt="" className="size-6" />
             <span className="font-[family-name:var(--font-display)] text-sm font-semibold">Painel Stark</span>
@@ -186,7 +199,7 @@ export function Shell({
             </span>
           </div>
         </aside>
-        {menuMobile && <div className="fixed inset-0 z-30 bg-canvas/50 lg:hidden" onClick={() => setMenuMobile(false)} />}
+        {menuMobile && <div aria-hidden className="fixed inset-0 z-30 bg-canvas/50 lg:hidden" onClick={() => setMenuMobile(false)} />}
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-20 flex h-16 items-center gap-2 bg-canvas/85 px-3 backdrop-blur sm:px-5 lg:pl-1">
@@ -214,9 +227,15 @@ export function Shell({
         {/* Navegação de baixo (celular) */}
         <nav aria-label="Atalhos" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-surface/95 backdrop-blur lg:hidden">
           {NAV.map(({ href, rotulo, Icone }) => (
-            <Link key={href} href={href} className={cn("flex flex-col items-center gap-0.5 py-2 text-[11px] text-fg-muted [&_svg]:size-5", ativo(href) && "text-accent")}>
+            <Link key={href} href={href} aria-current={ativo(href) ? "page" : undefined}
+              className={cn("relative flex flex-col items-center gap-0.5 py-2 text-[11px] text-fg-muted [&_svg]:size-5", ativo(href) && "text-accent")}>
               <Icone aria-hidden />
-              {rotulo.split(" ")[0]}
+              {href === "/leads" ? "Caixa" : rotulo.split(" ")[0]}
+              {href === "/leads" && abertos > 0 && (
+                <span className="num absolute left-1/2 top-1 ml-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-accent-fill px-1 text-[10px] font-semibold leading-none text-accent-fg">
+                  {abertos}<span className="sr-only"> sem resposta</span>
+                </span>
+              )}
             </Link>
           ))}
         </nav>

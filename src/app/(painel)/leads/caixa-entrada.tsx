@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Bookmark, Inbox, Search, X } from "lucide-react";
+import { AlertTriangle, Bookmark, Flame, Inbox, Search, SlidersHorizontal, User, X, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/dialog";
@@ -13,29 +13,61 @@ import { usePainel, useTecla } from "@/components/painel/contexto";
 import { useRelogio } from "@/hooks/use-now";
 import { chamar } from "@/lib/chamar";
 import { supabaseNavegador } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
-import { SLA_VENCENDO_MS } from "@/lib/sla";
-import { ORIGENS, SERVICOS, SITUACOES, type Servico } from "@/lib/rotulos";
+import { cn, formatProtocolo } from "@/lib/utils";
+import { aberto, arquivado, emConversa, estourado, semResposta, vencendo } from "@/lib/pedidos";
+import { ORIGENS, SERVICOS, SITUACOES, chaveOrigem, type Servico } from "@/lib/rotulos";
 import type { LeadInbox } from "@/lib/dados/tipos";
 import type { FiltroSalvo } from "@/lib/dados/consultas";
 import { carregarLeadInbox, descartarLead, removerFiltro, restaurarLead, salvarFiltro } from "../acoes";
 import { FichaLead } from "./ficha-lead";
 import { GRADE, LinhaLead } from "./linha";
 
-type Visao = "abertos" | "vencendo" | "estourados" | "meus" | "todos" | "descartados";
-const VISOES: { id: Visao; rotulo: string }[] = [
-  { id: "abertos", rotulo: "Sem resposta" },
-  { id: "vencendo", rotulo: "Vencendo (<4h)" },
-  { id: "estourados", rotulo: "SLA estourado" },
-  { id: "meus", rotulo: "Meus" },
-  { id: "todos", rotulo: "Todos" },
-  { id: "descartados", rotulo: "Descartados" },
+/**
+ * O caminho do pedido, sempre na mesma ordem:
+ * Novos (SLA correndo) → Em conversa (respondido; o negócio anda no funil) → Arquivados (convertido ou descartado).
+ */
+type Aba = "novos" | "conversa" | "arquivados" | "todos";
+type Urgencia = "" | "vencendo" | "estourados";
+const ABAS: { id: Aba; rotulo: string; dica: string }[] = [
+  { id: "novos", rotulo: "Novos", dica: "Ainda sem resposta. O prazo de 1 dia útil está correndo." },
+  { id: "conversa", rotulo: "Em conversa", dica: "Já respondidos. O negócio segue no funil." },
+  { id: "arquivados", rotulo: "Arquivados", dica: "Ganhos, perdidos ou descartados." },
 ];
-const ehVisao = (v: string | null): v is Visao => VISOES.some((x) => x.id === v);
 
-const aberto = (l: LeadInbox) => l.status === "novo" || l.status === "em_atendimento";
-const semResposta = (l: LeadInbox) => aberto(l) && !l.primeira_resposta_em;
-const falta = (l: LeadInbox, agora: number) => new Date(l.sla_vence_em).getTime() - agora;
+/** Links antigos (?visao=vencendo, ?visao=descartados…) continuam funcionando. */
+function lerVisao(v: string | null): { aba: Aba; urgencia: Urgencia; meus: boolean } | null {
+  switch (v) {
+    case "novos": case "abertos": return { aba: "novos", urgencia: "", meus: false };
+    case "vencendo": return { aba: "novos", urgencia: "vencendo", meus: false };
+    case "estourados": return { aba: "novos", urgencia: "estourados", meus: false };
+    case "meus": return { aba: "novos", urgencia: "", meus: true };
+    case "conversa": return { aba: "conversa", urgencia: "", meus: false };
+    case "arquivados": case "descartados": return { aba: "arquivados", urgencia: "", meus: false };
+    case "todos": return { aba: "todos", urgencia: "", meus: false };
+    default: return null;
+  }
+}
+
+
+
+function Chip({ ativo, onClick, cor, Icone, children }: {
+  ativo: boolean; onClick: () => void; cor?: "warning" | "danger"; Icone: LucideIcon; children: React.ReactNode;
+}) {
+  return (
+    <button
+      aria-pressed={ativo}
+      onClick={onClick}
+      className={cn(
+        "flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors [&_svg]:size-3.5",
+        ativo ? "border-transparent bg-accent-soft text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
+        !ativo && cor === "warning" && "[&_svg]:text-warning",
+        !ativo && cor === "danger" && "[&_svg]:text-danger",
+      )}
+    >
+      <Icone aria-hidden />{children}
+    </button>
+  );
+}
 
 export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbox[]; filtrosIniciais: FiltroSalvo[] }) {
   const { perfil, offline, nomeDe, equipe } = usePainel();
@@ -44,13 +76,25 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
   const agora = useRelogio();
   const [leads, setLeads] = React.useState(iniciais);
   const [novos, setNovos] = React.useState<Set<string>>(new Set());
-  const [visao, setVisao] = React.useState<Visao>(ehVisao(params.get("visao")) ? (params.get("visao") as Visao) : "abertos");
+  const inicial = lerVisao(params.get("visao")) ?? { aba: "novos" as Aba, urgencia: "" as Urgencia, meus: false };
+  const [aba, setAbaBruta] = React.useState<Aba>(inicial.aba);
+  const [urgencia, setUrgencia] = React.useState<Urgencia>(inicial.urgencia);
+  const [meus, setMeus] = React.useState(inicial.meus);
+  // Respondidos agora há pouco continuam visíveis em "Novos" (com aviso) até trocar de aba
+  const [movidos, setMovidos] = React.useState<Set<string>>(new Set());
+  const setAba = React.useCallback((a: Aba) => {
+    setAbaBruta(a);
+    setMovidos(new Set());
+    if (a !== "novos") setUrgencia("");
+  }, []);
   const [servico, setServico] = React.useState(params.get("servico") ?? "");
   const [origem, setOrigem] = React.useState(params.get("origem") ?? "");
   const [situacao, setSituacao] = React.useState(params.get("situacao") ?? "");
   const [resp, setResp] = React.useState("");
   const [busca, setBusca] = React.useState("");
   const [filtros, setFiltros] = React.useState(filtrosIniciais);
+  const [filtroAtivo, setFiltroAtivo] = React.useState<string | null>(null);
+  const [filtrosAbertos, setFiltrosAbertos] = React.useState(false); // celular: selects recolhidos
   const [sel, setSel] = React.useState<string | null>(params.get("id"));
   const [aberta, setAberta] = React.useState(Boolean(params.get("id")));
   const [comando, setComando] = React.useState<{ tipo: "responder" | "descartar"; n: number }>({ tipo: "responder", n: 0 });
@@ -62,16 +106,24 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
 
   // Links para /leads?id=… (notificação, ⌘K, sino) abrem a ficha mesmo já estando nesta tela
   const idDaUrl = params.get("id");
+  const abertoAqui = React.useRef<string | null>(null); // id aberto por clique nesta tela (não é link de fora)
   React.useEffect(() => {
-    if (idDaUrl) {
-      setSel(idDaUrl);
-      setAberta(true);
-    }
+    if (!idDaUrl || idDaUrl === abertoAqui.current) return;
+    setSel(idDaUrl);
+    setAberta(true);
+    // Link de fora (sino, ⌘K, e-mail): mostra a aba onde o pedido está, para ele aparecer por trás da ficha
+    const l = leads.find((x) => x.id === idDaUrl);
+    if (l && !params.get("visao")) setAbaBruta(arquivado(l) ? "arquivados" : l.primeira_resposta_em ? "conversa" : "novos");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idDaUrl]);
   const visaoDaUrl = params.get("visao");
   React.useEffect(() => {
-    if (ehVisao(visaoDaUrl)) setVisao(visaoDaUrl);
-  }, [visaoDaUrl]);
+    const v = lerVisao(visaoDaUrl);
+    if (!v) return;
+    setAba(v.aba);
+    setUrgencia(v.urgencia);
+    setMeus(v.meus);
+  }, [visaoDaUrl, setAba]);
 
   // Tempo real: pedido novo entra no topo com destaque; mudanças atualizam a linha
   React.useEffect(() => {
@@ -96,49 +148,72 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
 
   const termo = busca.trim().toLowerCase();
   const desde = dias ? agora - dias * 86_400_000 : null;
-  const lista = React.useMemo(() => {
-    const filtrada = leads.filter((l) => {
-      if (visao === "abertos" && !semResposta(l)) return false;
-      if (visao === "vencendo" && !(semResposta(l) && falta(l, agora) >= 0 && falta(l, agora) < SLA_VENCENDO_MS)) return false;
-      if (visao === "estourados" && !(semResposta(l) && falta(l, agora) < 0)) return false;
-      if (visao === "meus" && !(aberto(l) && l.responsavel_id === perfil.id)) return false;
-      if (visao === "todos" && l.status === "descartado") return false;
-      if (visao === "descartados" && l.status !== "descartado") return false;
+  // Filtros que valem para todas as abas: a lista e as contagens das abas usam os mesmos
+  const passaFiltros = React.useCallback((l: LeadInbox) => {
+      if (meus && l.responsavel_id !== perfil.id) return false;
       if (desde && new Date(l.created_at).getTime() < desde) return false;
       if (servico && !l.servicos.includes(servico as Servico)) return false;
-      if (origem && (l.origem ?? "direto") !== origem) return false;
+      if (origem && chaveOrigem(l.origem) !== chaveOrigem(origem)) return false;
       if (situacao && (l.situacao_atual ?? "nao_informado") !== situacao) return false;
       if (resp && (resp === "ninguem" ? l.responsavel_id : l.responsavel_id !== resp)) return false;
       if (termo && !`${l.nome} ${l.empresa ?? ""} ${l.email ?? ""} ${l.dor} #${String(l.protocolo).padStart(4, "0")}`.toLowerCase().includes(termo)) return false;
       return true;
+  }, [meus, perfil.id, desde, servico, origem, situacao, resp, termo]);
+
+  const lista = React.useMemo(() => {
+    // Respondido agora há pouco continua visível em Novos (com selo) enquanto ainda estiver aberto
+    const recem = (l: LeadInbox) => movidos.has(l.id) && aberto(l);
+    const filtrada = leads.filter((l) => {
+      if (aba === "novos" && !(semResposta(l) || recem(l))) return false;
+      if (aba === "novos" && urgencia === "vencendo" && !(vencendo(l, agora) || recem(l))) return false;
+      if (aba === "novos" && urgencia === "estourados" && !(estourado(l, agora) || recem(l))) return false;
+      if (aba === "conversa" && !emConversa(l)) return false;
+      if (aba === "arquivados" && !arquivado(l)) return false;
+      return passaFiltros(l);
     });
-    const porUrgencia = visao === "abertos" || visao === "vencendo" || visao === "estourados" || visao === "meus";
+    // Novos: o prazo mais apertado primeiro. Em conversa: respondido mais recente primeiro. Demais: chegada.
+    const tempo = (x: string | null) => (x ? +new Date(x) : 0);
     return filtrada.sort((a, b) => {
       // pedido que acabou de chegar fica no topo, em qualquer ordenação
       const na = novos.has(a.id) ? 1 : 0;
       const nb = novos.has(b.id) ? 1 : 0;
       if (na !== nb) return nb - na;
-      return porUrgencia ? +new Date(a.sla_vence_em) - +new Date(b.sla_vence_em) : +new Date(b.created_at) - +new Date(a.created_at);
+      if (aba === "novos") return tempo(a.sla_vence_em) - tempo(b.sla_vence_em);
+      if (aba === "conversa") return tempo(b.primeira_resposta_em) - tempo(a.primeira_resposta_em);
+      return tempo(b.created_at) - tempo(a.created_at);
     });
-  }, [leads, visao, servico, origem, situacao, resp, termo, perfil.id, agora, desde, novos]);
+  }, [leads, aba, urgencia, movidos, passaFiltros, agora, novos]);
 
-  const contagem = React.useMemo(() => ({
-    abertos: leads.filter(semResposta).length,
-    vencendo: leads.filter((l) => semResposta(l) && falta(l, agora) >= 0 && falta(l, agora) < SLA_VENCENDO_MS).length,
-    estourados: leads.filter((l) => semResposta(l) && falta(l, agora) < 0).length,
-    meus: leads.filter((l) => aberto(l) && l.responsavel_id === perfil.id).length,
-  }), [leads, perfil.id, agora]);
+  const contagem = React.useMemo(() => {
+    const base = leads.filter(passaFiltros);
+    return {
+      novos: base.filter(semResposta).length,
+      conversa: base.filter(emConversa).length,
+      vencendo: base.filter((l) => vencendo(l, agora)).length,
+      estourados: base.filter((l) => estourado(l, agora)).length,
+    };
+  }, [leads, passaFiltros, agora]);
 
   const selecionado = leads.find((l) => l.id === sel) ?? null;
 
+  const urlCom = (id: string | null) => {
+    const q = new URLSearchParams(window.location.search);
+    if (id) q.set("id", id); else q.delete("id");
+    const t = q.toString();
+    return `/leads${t ? `?${t}` : ""}`;
+  };
   const abrir = React.useCallback((id: string) => {
+    abertoAqui.current = id;
     setSel(id);
     setAberta(true);
-    window.history.replaceState(null, "", `/leads?id=${id}`);
+    window.history.replaceState(null, "", urlCom(id));
   }, []);
   const fechar = () => {
     setAberta(false);
-    window.history.replaceState(null, "", "/leads");
+    abertoAqui.current = null;
+    window.history.replaceState(null, "", urlCom(null));
+    // devolve o foco à linha, para J/K/Enter continuarem de onde parou
+    setTimeout(() => (document.querySelector(`[role=row][data-id="${sel}"]`) as HTMLElement | null)?.focus(), 0);
   };
 
   const mover = (d: 1 | -1) => {
@@ -163,6 +238,30 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
     setLeads((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   }, []);
 
+  /** Da ficha: na 1ª resposta, o pedido muda de aba e o negócio anda no funil. Avisa para onde foi. */
+  const atualizarDaFicha = React.useCallback((id: string, patch: Partial<LeadInbox>) => {
+    const antes = leads.find((x) => x.id === id);
+    const primeiraResposta = Boolean(antes && !antes.primeira_resposta_em && patch.primeira_resposta_em);
+    if (!primeiraResposta || !antes) return atualizar(id, patch);
+    // No banco, responder o cliente fecha o prazo de todos os pedidos dele que estavam sem resposta
+    const juntos = leads.filter((x) => x.contato_id === antes.contato_id && x.id !== id && semResposta(x)
+      && new Date(x.created_at) <= new Date(patch.primeira_resposta_em!));
+    const moveFunil = (l: LeadInbox) => (l.negocio_id && l.etapa === "novo" ? { etapa: "triagem" as const } : {});
+    setLeads((xs) => xs.map((x) => {
+      if (x.id === id) return { ...x, ...patch, ...moveFunil(x) };
+      if (juntos.some((j) => j.id === x.id)) return { ...x, primeira_resposta_em: patch.primeira_resposta_em!, status: "em_atendimento", ...moveFunil(x) };
+      return x;
+    }));
+    setMovidos((m) => new Set([...m, id, ...juntos.map((j) => j.id)]));
+    const funil = antes.negocio_id && antes.etapa === "novo" ? "No funil, o negócio passou para Em triagem." : "";
+    const outros = juntos.length ? ` ${juntos.map((j) => formatProtocolo(j.protocolo)).join(", ")} ${juntos.length > 1 ? "foram" : "foi"} junto (mesmo cliente).` : "";
+    toast.success(`Respondido. ${formatProtocolo(antes.protocolo)} foi para “Em conversa”`, {
+      description: (funil + outros).trim() || undefined,
+      action: { label: "Ver", onClick: () => { setAberta(false); setAba("conversa"); setSel(id); window.history.replaceState(null, "", urlCom(null)); } },
+      duration: 8000,
+    });
+  }, [leads, atualizar, setAba]);
+
   async function descartar(lead: LeadInbox, motivo: string) {
     const statusAntes = lead.status === "em_atendimento" ? "em_atendimento" : "novo";
     atualizar(lead.id, { status: "descartado" });
@@ -186,7 +285,8 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
   async function salvarAtual() {
     const nome = window.prompt("Nome do filtro (ex.: Automação vindo do Google)");
     if (!nome?.trim()) return;
-    const valores = Object.fromEntries(Object.entries({ visao, servico, origem, situacao, resp }).filter(([, v]) => v));
+    const visao = aba === "novos" && urgencia ? urgencia : aba;
+    const valores = Object.fromEntries(Object.entries({ visao, servico, origem, situacao, resp, meus: meus ? "1" : "" }).filter(([, v]) => v));
     const r = await chamar(salvarFiltro("inbox", nome, valores, true));
     if (!r.ok) return void toast.error(r.erro);
     const id = (r.dados as { id: string } | undefined)?.id ?? crypto.randomUUID();
@@ -209,47 +309,70 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
   }
 
   const aplicar = (f: FiltroSalvo) => {
-    setVisao(ehVisao(f.filtros.visao ?? null) ? (f.filtros.visao as Visao) : "todos");
+    const v = lerVisao(f.filtros.visao ?? null);
+    if (v) { setAba(v.aba); setUrgencia(v.urgencia); }
+    setMeus(Boolean(v?.meus) || f.filtros.meus === "1");
+    setFiltroAtivo(f.id);
     setServico(f.filtros.servico ?? "");
     setOrigem(f.filtros.origem ?? "");
     setSituacao(f.filtros.situacao ?? "");
     setResp(f.filtros.resp ?? "");
   };
   const limpar = () => {
-    setServico(""); setOrigem(""); setSituacao(""); setResp(""); setBusca("");
-    if (dias) router.replace("/leads");
+    setServico(""); setOrigem(""); setSituacao(""); setResp(""); setBusca(""); setUrgencia(""); setMeus(false); setFiltroAtivo(null);
+    if (aba === "todos") setAba("novos");
+    if (dias) { const q = new URLSearchParams(window.location.search); q.delete("dias"); router.replace(`/leads${q.size ? `?${q}` : ""}`); }
   };
-  const temFiltro = Boolean(servico || origem || situacao || resp || termo || dias);
+  const temFiltro = Boolean(servico || origem || situacao || resp || termo || dias || urgencia || meus || aba === "todos");
 
   return (
     <div className="flex h-[calc(100dvh-64px)] flex-col max-lg:h-[calc(100dvh-64px-56px)]">
       <div className="flex flex-col gap-3 px-4 pb-4 pt-2 sm:px-6 lg:pl-1">
-        <div className="flex items-baseline gap-3">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="text-xl font-semibold">Caixa de entrada</h1>
-          <span className="num text-sm text-fg-muted">{contagem.abertos} sem resposta</span>
+          <span className="text-sm text-fg-muted">{ABAS.find((x) => x.id === aba)?.dica ?? "Todos os pedidos, inclusive os arquivados."}</span>
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-1"><div className="flex shrink-0 gap-0.5 rounded-full bg-bloco p-1 shadow-bloco" role="tablist" aria-label="Visões">
-          {VISOES.map((v) => {
-            const n = (contagem as Record<string, number>)[v.id];
-            return (
-              <button
-                key={v.id}
-                role="tab"
-                aria-selected={visao === v.id}
-                onClick={() => setVisao(v.id)}
-                className={cn(
-                  "flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm text-fg-muted transition-colors hover:text-fg",
-                  visao === v.id && "bg-invert text-invert-fg hover:text-invert-fg",
-                )}
-              >
-                {v.rotulo}
-                {n > 0 && <span className={cn("num text-xs", v.id === "estourados" ? "text-danger" : v.id === "vencendo" ? "text-warning" : "text-fg-subtle")}>{n}</span>}
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap items-center gap-2 pb-1 sm:flex-nowrap sm:overflow-x-auto">
+          <div className="flex shrink-0 gap-0.5 rounded-full bg-bloco p-1 shadow-bloco" role="tablist" aria-label="Etapas do pedido">
+            {ABAS.map((v) => {
+              const n = v.id === "arquivados" ? 0 : contagem[v.id as "novos" | "conversa"];
+              return (
+                <button
+                  key={v.id}
+                  role="tab"
+                  aria-selected={aba === v.id}
+                  onClick={() => setAba(v.id)}
+                  className={cn(
+                    "flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm text-fg-muted transition-colors hover:text-fg",
+                    aba === v.id && "bg-invert text-invert-fg hover:text-invert-fg",
+                  )}
+                >
+                  {v.rotulo}
+                  {n > 0 && <span className="num text-xs opacity-70">{n}</span>}
+                </button>
+              );
+            })}
           </div>
+          {aba === "todos" && (
+            <span className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-accent-soft pl-3 pr-1 text-xs text-fg">
+              Todos os pedidos
+              <button aria-label="Voltar para Novos" onClick={() => setAba("novos")} className="p-0.5 text-fg-muted hover:text-fg"><X className="size-3.5" /></button>
+            </span>
+          )}
+          {aba === "novos" && (
+            <>
+              <Chip ativo={urgencia === "vencendo"} onClick={() => setUrgencia(urgencia === "vencendo" ? "" : "vencendo")} cor="warning" Icone={AlertTriangle}>
+                Vencendo em 4h <span className="num">{contagem.vencendo}</span>
+              </Chip>
+              <Chip ativo={urgencia === "estourados"} onClick={() => setUrgencia(urgencia === "estourados" ? "" : "estourados")} cor="danger" Icone={Flame}>
+                Prazo estourado <span className="num">{contagem.estourados}</span>
+              </Chip>
+            </>
+          )}
+          <Chip ativo={meus} onClick={() => setMeus(!meus)} Icone={User}>Só os meus</Chip>
           {filtros.map((f) => (
-            <span key={f.id} className="group flex h-8 shrink-0 items-center rounded-full border border-dashed border-border-strong text-sm text-fg-muted">
+            <span key={f.id} className={cn("group flex h-8 shrink-0 items-center rounded-full border border-dashed border-border-strong text-sm text-fg-muted",
+              filtroAtivo === f.id && "border-solid border-transparent bg-accent-soft text-fg")}>
               <button onClick={() => aplicar(f)} className="flex items-center gap-1.5 pl-2.5 pr-2 hover:text-fg"><Bookmark className="size-3.5" />{f.nome}</button>
               {f.profile_id === perfil.id && (
                 <button aria-label={`Remover filtro ${f.nome}`} onClick={() => remover(f)} className="-ml-1 pr-1.5 opacity-60 transition-opacity hover:text-fg hover:opacity-100">
@@ -263,8 +386,12 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
           <div className="relative min-w-48 flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute left-2.5 top-2 size-4 text-fg-subtle" aria-hidden />
             <Input ref={buscaRef} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Filtrar por nome, empresa, dor, #protocolo" className="pl-8" aria-label="Filtrar" />
-            <Kbd className="absolute right-2 top-1.5">/</Kbd>
+            <Kbd className="absolute right-2 top-1.5 max-sm:hidden">/</Kbd>
           </div>
+          <Button variant="secondary" size="sm" className="sm:hidden" aria-expanded={filtrosAbertos} onClick={() => setFiltrosAbertos((v) => !v)}>
+            <SlidersHorizontal /> Filtros{servico || origem || situacao || resp ? " •" : ""}
+          </Button>
+          <div className={cn("contents", !filtrosAbertos && "max-sm:hidden")}>
           <Select value={servico} onChange={(e) => setServico(e.target.value)} aria-label="Serviço">
             <option value="">Todos os serviços</option>
             {Object.entries(SERVICOS).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
@@ -283,10 +410,11 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
             <option value="ninguem">Sem responsável</option>
             {equipe.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
           </Select>
+          </div>
           {dias && (
             <span className="flex h-8 items-center gap-1 rounded-full bg-accent-soft pl-3 pr-1 text-xs text-fg">
               Chegaram nos últimos {dias} dias
-              <button aria-label="Remover período" onClick={() => router.replace("/leads")} className="p-0.5 text-fg-muted hover:text-fg"><X className="size-3.5" /></button>
+              <button aria-label="Remover período" onClick={() => { const q = new URLSearchParams(window.location.search); q.delete("dias"); router.replace(`/leads${q.size ? `?${q}` : ""}`); }} className="p-0.5 text-fg-muted hover:text-fg"><X className="size-3.5" /></button>
             </span>
           )}
           {temFiltro && <Button variant="ghost" size="sm" onClick={limpar}>Limpar</Button>}
@@ -296,17 +424,21 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
 
       <div role="grid" aria-label="Pedidos" className="mx-4 mb-4 min-h-0 overflow-y-auto rounded-2xl bg-bloco shadow-bloco sm:mx-6 lg:ml-1">
         <div role="row" className={cn(GRADE, "sticky top-0 z-10 hidden h-10 border-b border-border bg-bloco/95 px-5 text-xs text-fg-subtle backdrop-blur md:grid")}>
-          <span>Protocolo</span><span>Nome</span><span>Serviços</span><span>O que precisa</span><span>Origem</span><span>Chegou</span><span>SLA</span><span />
+          <span>Protocolo</span><span>Nome</span><span>Serviços</span><span>O que precisa</span><span>Origem</span><span>Chegou</span><span>{aba === "novos" ? "Prazo" : "Andamento"}</span><span />
         </div>
         {lista.map((l) => (
-          <LinhaLead key={l.id} lead={l} selecionado={l.id === sel} novo={novos.has(l.id)} responsavel={nomeDe(l.responsavel_id)} onAbrir={() => abrir(l.id)} />
+          <LinhaLead key={l.id} lead={l} selecionado={l.id === sel} novo={novos.has(l.id)} movido={aba === "novos" && movidos.has(l.id)} responsavel={nomeDe(l.responsavel_id)} onAbrir={() => abrir(l.id)} />
         ))}
         {lista.length === 0 && (
           <EmptyState
             icon={<Inbox />}
-            title={visao === "abertos" ? "Nenhum pedido esperando resposta" : visao === "estourados" ? "Nenhum SLA estourado" : visao === "vencendo" ? "Nada vencendo nas próximas 4h" : "Nada por aqui"}
-            description={visao === "abertos" && !temFiltro ? "Quando o formulário do site enviar um pedido, ele aparece aqui na hora." : temFiltro ? "Tente limpar os filtros." : undefined}
-            action={temFiltro ? <Button size="sm" onClick={limpar}>Limpar filtros</Button> : visao === "abertos" ? <Button size="sm" onClick={() => router.push("/funil")}>Ver o funil</Button> : undefined}
+            title={urgencia === "estourados" ? "Nenhum prazo estourado" : urgencia === "vencendo" ? "Nada vencendo nas próximas 4h"
+              : aba === "novos" ? "Nenhum pedido esperando resposta" : aba === "conversa" ? "Nenhuma conversa em andamento" : aba === "arquivados" ? "Nada arquivado" : "Nada por aqui"}
+            description={temFiltro ? "Tente limpar os filtros."
+              : aba === "novos" ? "Quando o formulário do site enviar um pedido, ele aparece aqui na hora."
+              : aba === "conversa" ? "Ao responder um pedido em Novos, ele vem para cá." : undefined}
+            action={temFiltro ? <Button size="sm" onClick={limpar}>Limpar filtros</Button>
+              : aba === "novos" && contagem.conversa > 0 ? <Button size="sm" onClick={() => setAba("conversa")}>Ver Em conversa</Button> : undefined}
           />
         )}
         <p className="hidden px-5 py-3 text-xs text-fg-subtle md:block">
@@ -320,7 +452,7 @@ export function CaixaEntrada({ iniciais, filtrosIniciais }: { iniciais: LeadInbo
         aberto={aberta}
         onFechar={fechar}
         comando={comando}
-        onAtualizar={atualizar}
+        onAtualizar={atualizarDaFicha}
         onDescartar={descartar}
       />
     </div>

@@ -44,7 +44,7 @@ export function NovoLead({ aberto, setAberto }: { aberto: boolean; setAberto: (v
       open={aberto}
       onOpenChange={setAberto}
       title="Novo lead"
-      description="Para pedidos que chegaram por telefone, indicação ou evento."
+      description="Para pedidos que chegaram por telefone, indicação ou evento. O e-mail do cliente é obrigatório (é por ele que a confirmação sai)."
       footer={
         <>
           <Button variant="ghost" onClick={() => setAberto(false)}>Cancelar</Button>

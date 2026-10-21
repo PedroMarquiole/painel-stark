@@ -62,6 +62,7 @@ export function leads(): LeadInbox[] {
     whatsapp: `+55119${String(70000000 + i * 1379).padStart(8, "0")}`,
     empresa: p[1],
     score: null,
+    etapa: (p[8] && p[6] === "novo" ? "triagem" : p[6]) as Etapa,
   }));
 }
 
@@ -78,7 +79,7 @@ export function negocios(): NegocioCard[] {
   return base().map(({ p, i, chegada }) => ({
     id: `neg-${i}`,
     titulo: `${{ sistemas_web: "Sistemas web", aplicativo: "Aplicativo", automacao_ia: "Automação e IA", integracoes_apis: "Integrações e APIs", dashboards: "Dashboards", site_landing: "Site ou landing page", loja_virtual: "Loja virtual", evoluir_existente: "Evoluir o que já existe" }[p[2][0]]} · ${p[1]}`,
-    etapa: p[6],
+    etapa: (p[8] && p[6] === "novo" ? "triagem" : p[6]) as Etapa,
     etapa_desde: iso(i === 9 ? agora - 12 * D : chegada + Math.max(0.5, p[7] / 3) * D),
     ordem: i,
     valor_estimado: p[9],
@@ -94,6 +95,12 @@ export function negocios(): NegocioCard[] {
     motivo_perda: p[10],
     previsao_fechamento: i === 10 ? iso(agora + 6 * D).slice(0, 10) : null,
     created_at: iso(chegada),
+    lead_id: `lead-${i}`,
+    respondido: Boolean(p[8]) || p[6] !== "novo",
+    sla_vence_em: !p[8] && p[6] === "novo" ? leads()[i].sla_vence_em : null,
+    motivo_perda_detalhe: null,
+    contato_email: leads()[i].email,
+    contato_whatsapp: leads()[i].whatsapp,
   }));
 }
 
@@ -166,7 +173,7 @@ export function automacoes(): { regras: Automacao[]; execucoes: Execucao[] } {
   const nomes: [number, string, string, string, number][] = [
     [1, "lead_processar", "Processar lead novo", "lead.criado", 1], [2, "lead_confirmacao_cliente", "Confirmação ao cliente", "lead.criado", 1],
     [3, "lead_avisar_equipe", "Avisar a equipe", "lead.criado", 1], [4, "lead_atribuir", "Atribuir responsável", "lead.criado", 1],
-    [5, "sla_alerta", "Alerta de SLA", "sla.vencendo", 1], [6, "lead_followup", "Follow-up sem resposta", "lead.sem_resposta", 2],
+    [5, "sla_alerta", "Alerta de prazo", "sla.vencendo", 1], [6, "lead_followup", "Follow-up sem resposta", "lead.sem_resposta", 2],
     [7, "negocio_parado", "Negócio parado", "negocio.parado", 2], [8, "reuniao_lembretes", "Lembretes de reunião", "reuniao.agendada", 2],
     [9, "proposta_visualizada", "Proposta visualizada", "proposta.visualizada", 3], [10, "proposta_followup", "Follow-up de proposta", "proposta.sem_resposta", 3],
     [11, "proposta_aceita", "Proposta aceita", "proposta.aceita", 3], [12, "fatura_lembrete", "Lembrete de cobrança", "fatura.vencimento", 4],
@@ -180,7 +187,7 @@ export function automacoes(): { regras: Automacao[]; execucoes: Execucao[] } {
     })),
     execucoes: [
       ["Avisar a equipe", "sucesso", 4], ["Confirmação ao cliente", "sucesso", 4], ["Atribuir responsável", "sucesso", 4],
-      ["Processar lead novo", "sucesso", 4], ["Alerta de SLA", "sucesso", 95], ["Avisar a equipe", "sucesso", 1240],
+      ["Processar lead novo", "sucesso", 4], ["Alerta de prazo", "sucesso", 95], ["Avisar a equipe", "sucesso", 1240],
     ].map(([automacao, status, min], i) => ({
       id: `e${i}`, automacao: automacao as string, status: status as string, entidade_tipo: "lead", entidade_id: "lead-0",
       created_at: iso(agora - (min as number) * 60_000), resultado: {}, erro: null,

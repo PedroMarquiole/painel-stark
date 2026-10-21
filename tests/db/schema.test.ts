@@ -118,6 +118,19 @@ describe("regras de negócio no banco", () => {
     expect(a.rows[0].titulo).toBe("Etapa: Novo → Proposta enviada");
   });
 
+  it("mover o card mantém a probabilidade ajustada à mão (Ganho/Perdido continuam 100/0)", async () => {
+    const c = await novoContato("prob@x.com");
+    const n = await db.query<{ id: string }>(`insert into negocios (titulo, contato_id) values ('ERP', $1) returning id`, [c]);
+    const id = n.rows[0].id;
+    await db.query(`update negocios set etapa = 'descoberta' where id = $1`, [id]);   // padrão 35
+    await db.query(`update negocios set probabilidade = 30 where id = $1`, [id]);     // vendedor ajusta
+    await db.query(`update negocios set etapa = 'proposta' where id = $1`, [id]);
+    const p = async () => (await db.query<{ probabilidade: number }>(`select probabilidade from negocios where id = $1`, [id])).rows[0].probabilidade;
+    expect(await p()).toBe(30);
+    await db.query(`update negocios set etapa = 'ganho' where id = $1`, [id]);
+    expect(await p()).toBe(100);
+  });
+
   it("perder negócio exige motivo", async () => {
     const c = await novoContato("perda@x.com");
     const n = await db.query<{ id: string }>(`insert into negocios (titulo, contato_id) values ('App', $1) returning id`, [c]);
