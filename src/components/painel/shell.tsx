@@ -3,11 +3,12 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as M from "@radix-ui/react-dropdown-menu";
-import { Bot, Columns3, Home, Inbox, LayoutTemplate, LogOut, Menu, Plus, Search } from "lucide-react";
+import { BarChart3, Bot, Columns3, Home, Inbox, LayoutTemplate, LogOut, Menu, Plus, Search } from "lucide-react";
 import { AppearanceControls } from "@/components/layout/appearance-controls";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { PAPEIS } from "@/lib/rotulos";
 import type { Notificacao, Perfil } from "@/lib/dados/tipos";
@@ -22,6 +23,7 @@ const NAV = [
   { href: "/", rotulo: "Início", Icone: Home, tecla: "H" },
   { href: "/leads", rotulo: "Caixa de entrada", Icone: Inbox, tecla: "I" },
   { href: "/funil", rotulo: "Funil", Icone: Columns3, tecla: "F" },
+  { href: "/relatorios", rotulo: "Relatórios", Icone: BarChart3, tecla: "R" },
   { href: "/automacoes", rotulo: "Automações", Icone: Bot, tecla: "A" },
 ];
 
@@ -79,88 +81,130 @@ export function Shell({
 
   const ativo = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
+  // Menu com texto: gaveta do celular
   const navegacao = (
     <nav aria-label="Principal" className="flex flex-col gap-0.5">
-      {NAV.map(({ href, rotulo, Icone, tecla }) => (
+      {NAV.map(({ href, rotulo, Icone }) => (
         <Link
           key={href}
           href={href}
           onClick={() => setMenuMobile(false)}
           aria-current={ativo(href) ? "page" : undefined}
           className={cn(
-            "group flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm text-fg-muted transition-colors hover:bg-overlay hover:text-fg [&_svg]:size-4",
-            ativo(href) && "bg-overlay text-fg",
+            "flex h-10 items-center gap-3 rounded-full px-3.5 text-sm text-fg-muted transition-colors hover:bg-overlay hover:text-fg [&_svg]:size-4",
+            ativo(href) && "bg-invert text-invert-fg hover:bg-invert hover:text-invert-fg",
           )}
         >
           <Icone aria-hidden />
           <span className="flex-1">{rotulo}</span>
-          {href === "/leads" && abertos > 0 && <span className="num rounded-sm bg-accent-soft px-1.5 text-xs text-accent">{abertos}</span>}
-          <span className="hidden gap-0.5 lg:group-hover:flex"><Kbd>G</Kbd><Kbd>{tecla}</Kbd></span>
+          {href === "/leads" && abertos > 0 && <span className="num text-xs">{abertos}</span>}
         </Link>
       ))}
     </nav>
   );
 
+  const menuConta = (
+    <M.Root>
+      <M.Trigger aria-label={`Conta: ${perfil.nome}`} className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent">
+        <Avatar name={perfil.nome} size={36} />
+      </M.Trigger>
+      <M.Portal>
+        <M.Content side="right" align="end" sideOffset={10} className="z-50 w-72 rounded-xl border border-border bg-raised p-3 shadow-pop data-[state=open]:animate-enter">
+          <p className="text-sm">{perfil.nome}</p>
+          <p className="truncate text-xs text-fg-muted">{perfil.email}</p>
+          <p className="text-xs text-fg-subtle">{PAPEIS[perfil.papel]}</p>
+          <div className="mt-3"><AppearanceControls /></div>
+          <M.Separator className="my-3 h-px bg-border" />
+          <M.Item onSelect={() => setAtalhos(true)} className="flex h-8 cursor-default items-center justify-between rounded-md px-2 text-sm text-fg-muted outline-none data-[highlighted]:bg-overlay data-[highlighted]:text-fg">
+            Atalhos de teclado <Kbd>?</Kbd>
+          </M.Item>
+          <M.Item asChild className="flex h-8 cursor-default items-center gap-2 rounded-md px-2 text-sm text-fg-muted outline-none data-[highlighted]:bg-overlay data-[highlighted]:text-fg [&_svg]:size-4">
+            <Link href="/design"><LayoutTemplate aria-hidden /> Design system</Link>
+          </M.Item>
+          <form action={sair}>
+            <button className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm text-fg-muted hover:bg-overlay hover:text-fg [&_svg]:size-4">
+              <LogOut aria-hidden /> Sair
+            </button>
+          </form>
+        </M.Content>
+      </M.Portal>
+    </M.Root>
+  );
+
   return (
     <PainelCtx.Provider value={ctx}>
       <div className="flex min-h-dvh">
-        {/* Barra lateral (desktop) */}
+        {/* Trilho de ícones (desktop) */}
+        <aside className="sticky top-0 hidden h-dvh w-[76px] shrink-0 flex-col items-center gap-6 py-5 lg:flex">
+          <Link href="/" aria-label="Painel Stark — início" className="grid size-10 place-items-center">
+            <img src="/logo-simbolo.svg" alt="" className="size-7" />
+          </Link>
+          <nav aria-label="Principal" className="flex flex-col items-center gap-2 rounded-full bg-bloco p-1.5 shadow-bloco">
+            {NAV.map(({ href, rotulo, Icone, tecla }) => (
+              <Tooltip key={href} side="right" content={<>{rotulo} <span className="flex gap-0.5"><Kbd>G</Kbd><Kbd>{tecla}</Kbd></span></>}>
+                <Link
+                  href={href}
+                  aria-label={rotulo}
+                  aria-current={ativo(href) ? "page" : undefined}
+                  className={cn(
+                    "relative grid size-10 place-items-center rounded-full text-fg-muted transition-colors hover:bg-overlay hover:text-fg [&_svg]:size-[18px]",
+                    ativo(href) && "bg-invert text-invert-fg hover:bg-invert hover:text-invert-fg",
+                  )}
+                >
+                  <Icone aria-hidden />
+                  {href === "/leads" && abertos > 0 && (
+                    <span className="num absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-accent-fill px-1 text-[10px] font-semibold leading-none text-accent-fg">
+                      {abertos}
+                    </span>
+                  )}
+                </Link>
+              </Tooltip>
+            ))}
+          </nav>
+          <div className="mt-auto flex flex-col items-center gap-3">
+            {offline && <span className="rounded-full bg-warning/15 px-1.5 text-[10px] font-medium text-warning">offline</span>}
+            {menuConta}
+          </div>
+        </aside>
+
+        {/* Gaveta (celular) */}
         <aside className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-border bg-surface px-3 py-3 transition-transform duration-200 ease-out lg:sticky lg:top-0 lg:h-dvh lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col gap-4 bg-surface p-4 transition-transform duration-200 ease-out lg:hidden",
           menuMobile ? "translate-x-0 shadow-pop" : "-translate-x-full",
         )}>
-          <Link href="/" className="mb-4 flex items-center gap-2.5 px-2 py-1">
+          <Link href="/" onClick={() => setMenuMobile(false)} className="flex items-center gap-2.5 px-1">
             <img src="/logo-simbolo.svg" alt="" className="size-6" />
             <span className="font-[family-name:var(--font-display)] text-sm font-semibold">Painel Stark</span>
             {offline && <span className="ml-auto rounded-sm bg-warning/15 px-1.5 text-[11px] font-medium text-warning">offline</span>}
           </Link>
-          <button
-            onClick={() => setBusca(true)}
-            className="mb-3 flex h-8 items-center gap-2 rounded-md border border-border bg-canvas/50 px-2.5 text-sm text-fg-subtle transition-colors hover:border-border-strong"
-          >
-            <Search className="size-4" aria-hidden /> <span className="flex-1 text-left">Buscar…</span> <Kbd>⌘K</Kbd>
-          </button>
           {navegacao}
-          <div className="mt-auto flex flex-col gap-0.5">
-            <Link href="/design" className="flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm text-fg-subtle hover:bg-overlay hover:text-fg [&_svg]:size-4">
-              <LayoutTemplate aria-hidden /> Design system
-            </Link>
-            <M.Root>
-              <M.Trigger className="flex items-center gap-2.5 rounded-md px-2 py-2 text-left outline-none hover:bg-overlay focus-visible:bg-overlay">
-                <Avatar name={perfil.nome} size={26} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm">{perfil.nome}</span>
-                  <span className="block text-xs text-fg-subtle">{PAPEIS[perfil.papel]}</span>
-                </span>
-              </M.Trigger>
-              <M.Portal>
-                <M.Content side="top" align="start" sideOffset={6} className="z-50 w-72 rounded-lg border border-border bg-raised p-3 shadow-pop data-[state=open]:animate-enter">
-                  <p className="text-sm">{perfil.nome}</p>
-                  <p className="mb-3 truncate text-xs text-fg-muted">{perfil.email}</p>
-                  <AppearanceControls />
-                  <M.Separator className="my-3 h-px bg-border" />
-                  <M.Item onSelect={() => setAtalhos(true)} className="flex h-8 cursor-default items-center justify-between rounded-md px-2 text-sm text-fg-muted outline-none data-[highlighted]:bg-overlay data-[highlighted]:text-fg">
-                    Atalhos de teclado <Kbd>?</Kbd>
-                  </M.Item>
-                  <form action={sair}>
-                    <button className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm text-fg-muted hover:bg-overlay hover:text-fg [&_svg]:size-4">
-                      <LogOut aria-hidden /> Sair
-                    </button>
-                  </form>
-                </M.Content>
-              </M.Portal>
-            </M.Root>
+          <div className="mt-auto flex items-center gap-3">
+            {menuConta}
+            <span className="min-w-0">
+              <span className="block truncate text-sm">{perfil.nome}</span>
+              <span className="block text-xs text-fg-subtle">{PAPEIS[perfil.papel]}</span>
+            </span>
           </div>
         </aside>
         {menuMobile && <div className="fixed inset-0 z-30 bg-canvas/50 lg:hidden" onClick={() => setMenuMobile(false)} />}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-border bg-canvas/85 px-3 backdrop-blur sm:px-5">
-            <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Menu" onClick={() => setMenuMobile(true)}><Menu /></Button>
+          <header className="sticky top-0 z-20 flex h-16 items-center gap-2 bg-canvas/85 px-3 backdrop-blur sm:px-5 lg:pl-1">
+            <Button variant="ghost" size="icon" className="rounded-full lg:hidden" aria-label="Menu" onClick={() => setMenuMobile(true)}><Menu /></Button>
             <span className="flex-1" />
-            <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Buscar" onClick={() => setBusca(true)}><Search /></Button>
-            <Notificacoes iniciais={notificacoes} />
-            <Button variant="primary" size="sm" onClick={() => setNovo(true)}>
+            <button
+              onClick={() => setBusca(true)}
+              aria-label="Buscar"
+              className="flex h-10 items-center gap-2 rounded-full bg-bloco pl-4 pr-1.5 text-sm text-fg-subtle shadow-bloco transition-colors hover:text-fg-muted max-sm:w-10 max-sm:justify-center max-sm:px-0 sm:w-80"
+            >
+              <span className="flex-1 text-left max-sm:hidden">Buscar lead, cliente ou #protocolo</span>
+              <Kbd className="max-sm:hidden">⌘K</Kbd>
+              <span className="grid size-7 place-items-center rounded-full bg-invert text-invert-fg max-sm:bg-transparent max-sm:text-fg-muted"><Search className="size-3.5" aria-hidden /></span>
+            </button>
+            <div className="grid size-10 place-items-center rounded-full bg-bloco shadow-bloco [&_button]:rounded-full">
+              <Notificacoes iniciais={notificacoes} />
+            </div>
+            <Button variant="primary" onClick={() => setNovo(true)} className="h-10 rounded-full px-4 max-sm:w-10 max-sm:px-0" aria-label="Novo lead">
               <Plus /> <span className="hidden sm:inline">Novo lead</span> <Kbd className="ml-0.5 hidden border-accent-fg/20 bg-transparent text-accent-fg/80 sm:inline-flex">N</Kbd>
             </Button>
           </header>
@@ -168,7 +212,7 @@ export function Shell({
         </div>
 
         {/* Navegação de baixo (celular) */}
-        <nav aria-label="Atalhos" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-border bg-surface/95 backdrop-blur lg:hidden">
+        <nav aria-label="Atalhos" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-surface/95 backdrop-blur lg:hidden">
           {NAV.map(({ href, rotulo, Icone }) => (
             <Link key={href} href={href} className={cn("flex flex-col items-center gap-0.5 py-2 text-[11px] text-fg-muted [&_svg]:size-5", ativo(href) && "text-accent")}>
               <Icone aria-hidden />

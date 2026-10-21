@@ -4,13 +4,13 @@ import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import * as D from "@radix-ui/react-dialog";
 import { useTheme } from "next-themes";
-import { Bot, Building2, Columns3, Home, Inbox, LayoutTemplate, Moon, Plus, Search, Sun, User } from "lucide-react";
+import { BarChart3, Bot, Building2, Columns3, Home, Inbox, LayoutTemplate, Moon, Plus, Search, Sun, User } from "lucide-react";
 import { Kbd } from "@/components/ui/kbd";
 import { buscarGlobal } from "@/app/(painel)/acoes";
 import type { ResultadoBusca } from "@/lib/dados/tipos";
 
 const item =
-  "flex h-9 cursor-default items-center gap-2.5 rounded-md px-2.5 text-sm text-fg-muted data-[selected=true]:bg-overlay data-[selected=true]:text-fg [&_svg]:size-4";
+  "flex h-9 cursor-default items-center gap-2.5 rounded-lg px-2.5 text-sm text-fg-muted data-[selected=true]:bg-overlay data-[selected=true]:text-fg [&_svg]:size-4";
 
 export function Busca({ aberto, setAberto, novoLead }: { aberto: boolean; setAberto: (v: boolean) => void; novoLead: () => void }) {
   const router = useRouter();
@@ -42,7 +42,7 @@ export function Busca({ aberto, setAberto, novoLead }: { aberto: boolean; setAbe
     <D.Root open={aberto} onOpenChange={setAberto}>
       <D.Portal>
         <D.Overlay className="fixed inset-0 z-40 bg-canvas/60 backdrop-blur-[2px]" />
-        <D.Content className="fixed left-1/2 top-[14vh] z-50 w-[calc(100%-32px)] max-w-xl -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-raised shadow-pop data-[state=open]:animate-enter">
+        <D.Content className="fixed left-1/2 top-[14vh] z-50 w-[calc(100%-32px)] max-w-xl -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-raised shadow-pop data-[state=open]:animate-enter">
           <D.Title className="sr-only">Buscar</D.Title>
           <Command shouldFilter={false} loop label="Busca e comandos">
             <div className="flex items-center gap-2 border-b border-border px-4">
@@ -75,6 +75,7 @@ export function Busca({ aberto, setAberto, novoLead }: { aberto: boolean; setAbe
                   <Command.Item value="inicio" onSelect={() => ir("/")} className={item}><Home /> Início <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>H</Kbd></span></Command.Item>
                   <Command.Item value="leads" onSelect={() => ir("/leads")} className={item}><Inbox /> Caixa de entrada <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>I</Kbd></span></Command.Item>
                   <Command.Item value="funil" onSelect={() => ir("/funil")} className={item}><Columns3 /> Funil <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>F</Kbd></span></Command.Item>
+                  <Command.Item value="relatorios" onSelect={() => ir("/relatorios")} className={item}><BarChart3 /> Relatórios <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>R</Kbd></span></Command.Item>
                   <Command.Item value="automacoes" onSelect={() => ir("/automacoes")} className={item}><Bot /> Automações <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>A</Kbd></span></Command.Item>
                   <Command.Item value="design" onSelect={() => ir("/design")} className={item}><LayoutTemplate /> Design system</Command.Item>
                   <Command.Item value="novo" onSelect={() => { setAberto(false); novoLead(); }} className={item}><Plus /> Novo lead <span className="ml-auto"><Kbd>N</Kbd></span></Command.Item>

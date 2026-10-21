@@ -52,6 +52,14 @@
   --c-grid: #2a251f;
 
   --shadow-pop: 0 8px 24px -12px rgb(0 0 0 / 0.6), 0 0 0 1px var(--c-border);
+
+  /* Blocos da Início: flutuam sobre o fundo (sombra + brilho de 1px no topo, sem borda) */
+  --c-bloco: #16130f;
+  --c-bloco-inset: #1f1b16; /* área interna (mini-tiles, trilho do medidor) */
+  --shadow-bloco: inset 0 1px 0 rgb(255 240 225 / 0.045), 0 1px 2px rgb(0 0 0 / 0.35), 0 12px 32px -16px rgb(0 0 0 / 0.7);
+  /* Item ativo do menu: invertido (claro sobre escuro) */
+  --c-invert: #ede8e0;
+  --c-invert-fg: #0c0a07;
 }
 
 /* ───────────────────────── Tema claro (creme, nunca branco estourado) ─── */
@@ -91,6 +99,12 @@
   --c-grid: #e8e0d3;
 
   --shadow-pop: 0 8px 24px -12px rgb(60 40 20 / 0.18), 0 0 0 1px var(--c-border);
+
+  --c-bloco: #fffdf9;
+  --c-bloco-inset: #f5efe5;
+  --shadow-bloco: 0 1px 2px rgb(60 40 20 / 0.06), 0 12px 32px -18px rgb(60 40 20 / 0.22);
+  --c-invert: #1f1a14;
+  --c-invert-fg: #fdfaf5;
 }
 
 /* ───────────────────────── Densidade (por usuário) ───────────────────────── */
@@ -138,6 +152,11 @@
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
   --shadow-pop: var(--shadow-pop);
+  --shadow-bloco: var(--shadow-bloco);
+  --color-bloco: var(--c-bloco);
+  --color-bloco-inset: var(--c-bloco-inset);
+  --color-invert: var(--c-invert);
+  --color-invert-fg: var(--c-invert-fg);
 
   --spacing-row: var(--row-h);
   --spacing-card: var(--pad-card);
@@ -161,6 +180,7 @@
   --radius-md: 6px;
   --radius-lg: 8px;
   --radius-xl: 12px;
+  --radius-2xl: 20px; /* blocos da Início */
 
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --animate-enter: enter 200ms var(--ease-out);

@@ -46,8 +46,8 @@ export function BarrasHorizontais({ dados, nome, href, cor = "var(--c-series-1)"
   );
 }
 
-/** Funil como barras alinhadas, com a conversão entre etapas. */
-export function Funil({ etapas }: { etapas: { rotulo: string; n: number }[] }) {
+/** Funil como barras alinhadas, com a conversão entre etapas. `destacarFim`: só a última etapa na cor da marca. */
+export function Funil({ etapas, destacarFim = false }: { etapas: { rotulo: string; n: number }[]; destacarFim?: boolean }) {
   const max = Math.max(1, ...etapas.map((e) => e.n));
   return (
     <ol className="flex flex-col gap-1.5">
@@ -55,7 +55,7 @@ export function Funil({ etapas }: { etapas: { rotulo: string; n: number }[] }) {
         <li key={f.rotulo} className="grid grid-cols-[minmax(92px,140px)_1fr_76px] items-center gap-3 text-sm">
           <span className="truncate text-fg-muted">{f.rotulo}</span>
           <span className="h-5 rounded-sm bg-overlay">
-            <span className="block h-full rounded-sm bg-series-1 transition-[width] duration-300" style={{ width: `${(f.n / max) * 100}%` }} />
+            <span className={`block h-full rounded-sm transition-[width] duration-300 ${destacarFim && i < etapas.length - 1 ? "bg-fg-subtle/50" : "bg-series-1"}`} style={{ width: `${(f.n / max) * 100}%` }} />
           </span>
           <span className="num text-right text-xs">
             {f.n}

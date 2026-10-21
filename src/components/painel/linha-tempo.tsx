@@ -43,7 +43,7 @@ export function LinhaTempo({ atividades, vazio = "Nada registrado ainda." }: { a
                 {fmt.format(new Date(a.ocorreu_em))}{a.autor_nome ? <span className="font-sans"> · {a.autor_nome}</span> : null}
               </p>
               {a.corpo && a.tipo !== "lead_recebido" && (
-                <p className="mt-1.5 whitespace-pre-wrap rounded-md bg-surface px-3 py-2 text-sm text-fg-muted">{a.corpo}</p>
+                <p className="mt-1.5 whitespace-pre-wrap rounded-xl bg-bloco-inset px-3 py-2 text-sm text-fg-muted">{a.corpo}</p>
               )}
             </div>
           </li>

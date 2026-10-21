@@ -35,7 +35,7 @@ export const LinhaLead = React.memo(function LinhaLead({
       style={{ minHeight: "var(--row-h)" }}
       className={cn(
         GRADE,
-        "relative flex cursor-default flex-col gap-1.5 border-b border-border px-4 py-3 text-sm transition-colors duration-100 hover:bg-overlay/50 md:py-0",
+        "relative flex cursor-default flex-col gap-1.5 border-b border-border/70 px-5 py-3 text-sm transition-colors duration-100 hover:bg-overlay/50 md:py-0",
         selecionado && "bg-overlay/70 before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent",
         novo && "animate-[enter_200ms_ease-out,highlight_2.4s_ease-out]",
         lead.status === "descartado" && "opacity-60",

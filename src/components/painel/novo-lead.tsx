@@ -75,7 +75,7 @@ export function NovoLead({ aberto, setAberto }: { aberto: boolean; setAberto: (v
                   aria-pressed={on}
                   onClick={() => setServicos(on ? servicos.filter((x) => x !== s) : [...servicos, s])}
                   className={cn(
-                    "h-7 rounded-md border px-2.5 text-xs transition-colors",
+                    "h-7 rounded-full border px-3 text-xs transition-colors",
                     on ? "border-accent bg-accent-soft text-fg" : "border-border text-fg-muted hover:border-border-strong",
                   )}
                 >
