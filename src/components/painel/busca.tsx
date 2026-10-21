@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import * as D from "@radix-ui/react-dialog";
 import { useTheme } from "next-themes";
-import { Bot, Building2, Columns3, Home, Inbox, LayoutTemplate, Moon, Plus, Search, Sun, User } from "lucide-react";
+import { BarChart3, Bot, Building2, Columns3, Home, Inbox, LayoutTemplate, Moon, Plus, Search, Sun, User } from "lucide-react";
 import { Kbd } from "@/components/ui/kbd";
 import { buscarGlobal } from "@/app/(painel)/acoes";
 import type { ResultadoBusca } from "@/lib/dados/tipos";
@@ -75,6 +75,7 @@ export function Busca({ aberto, setAberto, novoLead }: { aberto: boolean; setAbe
                   <Command.Item value="inicio" onSelect={() => ir("/")} className={item}><Home /> Início <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>H</Kbd></span></Command.Item>
                   <Command.Item value="leads" onSelect={() => ir("/leads")} className={item}><Inbox /> Caixa de entrada <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>I</Kbd></span></Command.Item>
                   <Command.Item value="funil" onSelect={() => ir("/funil")} className={item}><Columns3 /> Funil <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>F</Kbd></span></Command.Item>
+                  <Command.Item value="relatorios" onSelect={() => ir("/relatorios")} className={item}><BarChart3 /> Relatórios <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>R</Kbd></span></Command.Item>
                   <Command.Item value="automacoes" onSelect={() => ir("/automacoes")} className={item}><Bot /> Automações <span className="ml-auto flex gap-1"><Kbd>G</Kbd><Kbd>A</Kbd></span></Command.Item>
                   <Command.Item value="design" onSelect={() => ir("/design")} className={item}><LayoutTemplate /> Design system</Command.Item>
                   <Command.Item value="novo" onSelect={() => { setAberto(false); novoLead(); }} className={item}><Plus /> Novo lead <span className="ml-auto"><Kbd>N</Kbd></span></Command.Item>
