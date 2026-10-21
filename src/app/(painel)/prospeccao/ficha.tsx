@@ -20,7 +20,7 @@ import {
   ATIVAS, atrasado, hojeSp, linkDoCanal, linkEmail, linkInstagram, linkLinkedin, linkSite, linkWhatsapp, numeroDoContato, preencher, rotuloDia,
   simularToque, type ResultadoToque,
 } from "@/lib/prospeccao";
-import { atualizarProspect, carregarToques, converterEmNegocio, mudarSituacao, registrarToque, type DadosProspect } from "./acoes";
+import { atualizarProspect, carregarToques, converterEmNegocio, desfazerSituacao, mudarSituacao, registrarToque, type DadosProspect } from "./acoes";
 import { Pontos, Proximo, SeloSituacao } from "./comum";
 
 const RESULTADOS: { id: ResultadoToque; rotulo: string }[] = [
@@ -36,9 +36,9 @@ const ROTULO_TOQUE: Record<ToqueProspect["resultado"], string> = {
 };
 const fmt = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
 
-export function FichaProspect({ prospect: p, aberto, foco, modelos, config, onFechar, onAtualizar, onContatoFeito }: {
+export function FichaProspect({ prospect: p, aberto, foco, modelos, config, onFechar, onAtualizar }: {
   prospect: Prospect | null; aberto: boolean; foco: "registrar" | null; modelos: ModeloProspeccao[]; config: ConfigProspeccao;
-  onFechar: () => void; onAtualizar: (id: string, patch: Partial<Prospect>) => void; onContatoFeito: () => void;
+  onFechar: () => void; onAtualizar: (id: string, patch: Partial<Prospect>) => void;
 }) {
   const { perfil, equipe } = usePainel();
   const router = useRouter();
@@ -85,7 +85,7 @@ export function FichaProspect({ prospect: p, aberto, foco, modelos, config, onFe
   const encerrado = p.situacao === "sem_interesse" || p.situacao === "nao_abordar";
   const sugestao = simularToque(p, resultado, config.ritmo, hoje, data || null);
   const proximoTexto = resultado === "nota" ? null
-    : sugestao.situacao === "sem_interesse" ? (resultado === "sem_interesse" ? "Vai para Encerrados." : `Era o ${p.toques + 1}º contato sem resposta: vai para Encerrados (dá para reabrir).`)
+    : sugestao.situacao === "sem_interesse" ? (resultado === "enviada" ? `Era o ${sugestao.toques}º contato sem resposta: vai para Encerrados (dá para reabrir).` : "Vai para Encerrados.")
     : sugestao.proximo_contato ? `Próximo contato: ${rotuloDia(sugestao.proximo_contato, hoje)}${data ? "" : " (pelo ritmo)"}` : null;
 
   const adicionarToque = (t: Omit<ToqueProspect, "id" | "ocorreu_em" | "autor_nome">) =>
@@ -105,7 +105,6 @@ export function FichaProspect({ prospect: p, aberto, foco, modelos, config, onFe
       if (!r.ok) { onAtualizar(p.id, antes); return void toast.error(r.erro); }
       if (r.dados) onAtualizar(p.id, { situacao: r.dados.situacao, proximo_contato: r.dados.proximo_contato, toques: r.dados.toques });
       adicionarToque({ canal, resultado, anotacao: anotacao.trim() || null });
-      if (resultado === "enviada") onContatoFeito();
       const final = r.dados ?? { situacao: previsto.situacao ?? p.situacao, proximo_contato: previsto.proximo_contato ?? null };
       toast.success(resultado === "nota" ? "Anotação salva"
         : final.situacao === "sem_interesse" ? `${p.empresa} foi para Encerrados`
@@ -122,7 +121,7 @@ export function FichaProspect({ prospect: p, aberto, foco, modelos, config, onFe
   async function mudar(para: "sem_interesse" | "nao_abordar" | "reabrir") {
     if (!p) return;
     const destino = para === "reabrir" ? (p.toques === 0 ? "a_abordar" : "acompanhamento") : para;
-    const antes = { situacao: p.situacao, proximo_contato: p.proximo_contato };
+    const antes = { situacao: p.situacao, proximo_contato: p.proximo_contato, toques: p.toques, motivo_encerramento: p.motivo_encerramento };
     onAtualizar(p.id, { situacao: destino, proximo_contato: para === "reabrir" ? hoje : null });
     const r = await chamar(mudarSituacao(p.id, destino));
     if (!r.ok) { onAtualizar(p.id, antes); return void toast.error(r.erro); }
@@ -134,7 +133,7 @@ export function FichaProspect({ prospect: p, aberto, foco, modelos, config, onFe
         label: "Desfazer",
         onClick: async () => {
           onAtualizar(p.id, antes);
-          const d = await chamar(mudarSituacao(p.id, antes.situacao === "interessado" ? "acompanhamento" : antes.situacao));
+          const d = await chamar(desfazerSituacao(p.id, antes));
           if (!d.ok) toast.error(d.erro);
         },
       },

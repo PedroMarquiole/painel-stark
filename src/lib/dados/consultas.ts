@@ -275,9 +275,14 @@ async function respostasRecentes(ids: string[]) {
 export async function listarProspects(): Promise<Prospect[]> {
   if (OFFLINE) return fx.prospects();
   const sb = await supabaseServidor();
-  const { data, error } = await sb.from("prospects").select(SELECT_PROSPECT).order("created_at", { ascending: true }).limit(3000);
-  if (error) throw new Error(error.message);
-  const linhas = (data ?? []) as unknown as LinhaProspect[];
+  // O Supabase devolve no máximo 1.000 linhas por vez: busca em páginas
+  const linhas: LinhaProspect[] = [];
+  for (let de = 0; de < 10_000; de += 1000) {
+    const { data, error } = await sb.from("prospects").select(SELECT_PROSPECT).order("created_at", { ascending: true }).order("id").range(de, de + 999);
+    if (error) throw new Error(error.message);
+    linhas.push(...((data ?? []) as unknown as LinhaProspect[]));
+    if ((data ?? []).length < 1000) break;
+  }
   const resp = await respostasRecentes(linhas.filter((p) => p.situacao === "respondeu").map((p) => p.id));
   return linhas.map(({ lista, ...p }) => ({ ...p, lista_nome: lista?.nome ?? null, ultima_resposta: resp.get(p.id) ?? null }));
 }
@@ -322,6 +327,6 @@ export async function configProspeccao(): Promise<ConfigProspeccao> {
   const v = Object.fromEntries((data ?? []).map((x) => [x.chave, x.valor]));
   return {
     ritmo: Array.isArray(v.prospeccao_ritmo) ? (v.prospeccao_ritmo as number[]) : [3, 4],
-    meta_semana: typeof v.prospeccao_meta_semana === "number" ? v.prospeccao_meta_semana : null,
+    meta_semana: typeof v.prospeccao_meta_semana === "number" && v.prospeccao_meta_semana > 0 ? v.prospeccao_meta_semana : null,
   };
 }

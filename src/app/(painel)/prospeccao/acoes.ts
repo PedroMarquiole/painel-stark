@@ -31,6 +31,15 @@ export async function mudarSituacao(id: string, situacao: Exclude<SituacaoProspe
     (sb) => sb.rpc("mudar_situacao_prospect", { p_prospect: id, p_situacao: situacao, p_motivo: motivo || undefined }) as never, TELAS);
 }
 
+/** Desfazer: devolve situação, data e contatos exatamente como estavam. */
+export async function desfazerSituacao(id: string, antes: { situacao: SituacaoProspect; proximo_contato: string | null; toques: number; motivo_encerramento?: string | null }) {
+  if (antes.situacao === "interessado") return { ok: false as const, erro: "Já virou negócio." };
+  return executar<{ situacao: SituacaoProspect; proximo_contato: string | null; toques: number }>(
+    (sb) => sb.rpc("desfazer_situacao_prospect" as never, {
+      p_prospect: id, p_situacao: antes.situacao, p_proximo: antes.proximo_contato, p_toques: antes.toques, p_motivo: antes.motivo_encerramento ?? null,
+    } as never) as never, TELAS);
+}
+
 export async function converterEmNegocio(id: string, email: string, whatsapp: string, servicos: Servico[]) {
   const validos = servicos.filter((s) => s in SERVICOS);
   return executar<{ negocio_id: string; contato_id: string; ja_existia: boolean }>(
@@ -43,12 +52,18 @@ export interface DadosProspect {
   cidade?: string; segmento?: string; porque?: string; canal: CanalProspect; origem?: string; responsavel_id?: string | null;
 }
 
+const INVALIDO = "invalido";
+/** Mesma regra do banco (normalizar_whatsapp): DDD + número, ou internacional com +. */
 const normalizarWhats = (v: string | null) => {
   if (!v) return null;
   const d = v.replace(/\D/g, "").replace(/^0+/, "");
-  return !d ? null : v.trim().startsWith("+") ? `+${d}` : d.length <= 11 ? `+55${d}` : `+${d}`;
+  if (!d) return null;
+  if (v.trim().startsWith("+")) return d.length >= 8 && d.length <= 15 ? `+${d}` : INVALIDO;
+  if (d.length === 10 || d.length === 11) return `+55${d}`;
+  if ((d.length === 12 || d.length === 13) && d.startsWith("55")) return `+${d}`;
+  return INVALIDO;
 };
-const normalizarSite = (v: string | null) => (v ? v.toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "") : null);
+const normalizarSite = (v: string | null) => (v ? v.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "") : null);
 
 function campos(d: Partial<DadosProspect>) {
   const out: Record<string, unknown> = {};
@@ -73,6 +88,7 @@ export async function criarProspect(d: DadosProspect) {
   const p = await q.perfilAtual();
   if (!p || p.papel === "projetos") return { ok: false as const, erro: SEM_PERMISSAO };
   if (!limpar(d.empresa)) return { ok: false as const, erro: "Informe a empresa." };
+  if (campos(d).whatsapp === INVALIDO) return { ok: false as const, erro: "Confira o WhatsApp: use DDD + número, ex.: (11) 98765-4321." };
   const hoje = new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10);
   return executar<{ id: string }>((sb) => sb.from("prospects").insert({
     ...campos(d), responsavel_id: d.responsavel_id || p.id, criado_por: p.id, proximo_contato: hoje,
@@ -80,6 +96,7 @@ export async function criarProspect(d: DadosProspect) {
 }
 
 export async function atualizarProspect(id: string, d: Partial<DadosProspect>) {
+  if (campos(d).whatsapp === INVALIDO) return { ok: false as const, erro: "Confira o WhatsApp: use DDD + número, ex.: (11) 98765-4321." };
   return executar((sb) => sb.from("prospects").update(campos(d) as never).eq("id", id).select("id"), TELAS, true);
 }
 
@@ -110,6 +127,7 @@ export async function salvarConfig(ritmo: number[], meta: number | null) {
   return executar(async (sb) => {
     const a = await sb.from("app_config").update({ valor: r as never }).eq("chave", "prospeccao_ritmo").select("chave");
     if (a.error || !a.data?.length) return a;
-    return sb.from("app_config").update({ valor: (meta && meta > 0 ? Math.round(meta) : null) as never }).eq("chave", "prospeccao_meta_semana").select("chave");
+    // sem meta = 0 (a coluna não aceita vazio)
+    return sb.from("app_config").update({ valor: (meta && meta > 0 ? Math.round(meta) : 0) as never }).eq("chave", "prospeccao_meta_semana").select("chave");
   }, TELAS, true);
 }
