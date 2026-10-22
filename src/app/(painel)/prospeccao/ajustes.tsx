@@ -85,7 +85,10 @@ export function Ajustes({ aberto, setAberto, modelos, config, onModelo, onConfig
           <Textarea aria-label="Texto do modelo" className="min-h-36" value={texto} onChange={(e) => setTexto(e.target.value)} disabled={perfil.papel === "projetos"}
             placeholder="Oi, {{pessoa}}! Aqui é {{seu_nome}}, da Stark…" />
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs text-fg-subtle">Use {"{{pessoa}}"}, {"{{empresa}}"} e {"{{seu_nome}}"}: o painel troca pelo primeiro nome de cada um.</p>
+            <p className="text-xs text-fg-subtle">
+              {"{{pessoa}}"}, {"{{empresa}}"}, {"{{seu_nome}}"} e, pelo ramo da empresa (campo Segmento ou o nome), {"{{nicho}}"} (ex.: clínicas),
+              {"{{dor}}"} (o problema típico do ramo), {"{{ganho}}"} (o que o sistema resolve) e {"{{na_cidade}}"} (“ em Campinas”).
+            </p>
             {perfil.papel !== "projetos" && <Button variant="primary" size="sm" onClick={gravarModelo} disabled={salvando || (texto === atual && assunto === assuntoAtual)}>Salvar modelo</Button>}
           </div>
         </section>
