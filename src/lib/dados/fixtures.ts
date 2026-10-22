@@ -284,7 +284,7 @@ export const modelosProspeccao: ModeloProspeccao[] = (["linkedin", "whatsapp", "
   ([1, 2, 3] as const).map((toque) => ({
     canal, toque,
     assunto: canal === "email" ? (toque === 1 ? "{{empresa}}: uma pergunta rápida" : toque === 2 ? "Re: {{empresa}}: uma pergunta rápida" : "Posso encerrar por aqui?") : null,
-    texto: toque === 1 ? "Oi, {{pessoa}}! Sou {{seu_nome}}, da Stark. A gente cria sistemas sob medida para empresas como a {{empresa}} tirarem processos da planilha.\nFaz sentido uma conversa de 20 minutos?"
+    texto: toque === 1 ? "Oi, {{pessoa}}! Tudo bem? Aqui é {{seu_nome}}, da Stark 👋\n\nConverso muito com {{nicho}}{{na_cidade}} e quase sempre ouço a mesma coisa: {{dor}}.\n\nA gente resolve isso com um sistema feito sob medida: {{ganho}}.\n\nSe isso acontece aí na {{empresa}} também, posso te mostrar em 15 minutos como ficaria? Sem compromisso."
       : toque === 2 ? "Oi, {{pessoa}}, tudo bem? Retomando minha mensagem sobre sistemas sob medida para a {{empresa}}. Tem 20 minutos esta semana?"
       : "Oi, {{pessoa}}! Passando uma última vez por aqui. Se fizer sentido para a {{empresa}} no futuro, é só chamar.",
   })));

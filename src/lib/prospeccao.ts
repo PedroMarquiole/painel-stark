@@ -26,13 +26,52 @@ export function ordenarHoje(xs: Prospect[], hoje: string) {
 /** Qual contato vem agora (1º, 2º ou 3º): define a mensagem sugerida. */
 export const numeroDoContato = (p: Pick<Prospect, "toques">) => Math.min(3, p.toques + 1) as 1 | 2 | 3;
 
-/** Preenche {{pessoa}}, {{empresa}} e {{seu_nome}}. Sem pessoa, usa um cumprimento neutro. */
-export function preencher(texto: string, p: Pick<Prospect, "pessoa" | "empresa">, seuNome: string) {
+// ─── Mensagem personalizada por ramo ─────────────────────────────────────────
+/** Dor típica e ganho concreto de cada ramo: a mensagem fala a língua do cliente. */
+export const RAMOS: { re: RegExp; nicho: string; dor: string; ganho: string }[] = [
+  { re: /cl[ií]nica|odonto|dent|sa[uú]de|consult[oó]rio|m[eé]dic|fisio|est[eé]tica|veterin/i, nicho: "clínicas",
+    dor: "agenda espalhada entre WhatsApp, papel e sistema, e paciente que falta sem avisar", ganho: "agendamento e confirmação automáticos, com prontuário e financeiro num lugar só" },
+  { re: /constru|engenharia|obra|arquitet|incorpor/i, nicho: "construtoras",
+    dor: "obra, compras e medições controladas em planilhas que ninguém confia", ganho: "custos, prazos e andamento de cada obra em tempo real, até pelo celular" },
+  { re: /restaurante|padaria|lanchonete|pizzaria|aliment|bar\b|caf[eé]|hamburg|delivery|confeit/i, nicho: "padarias e restaurantes",
+    dor: "pedido anotado na mão, estoque no chute e WhatsApp lotado no horário de pico", ganho: "pedidos, estoque e entregas organizados num painel só" },
+  { re: /imobili[aá]ri|corretor|im[oó]ve/i, nicho: "imobiliárias",
+    dor: "corretor controlando visitas no WhatsApp e ninguém sabendo qual imóvel está reservado", ganho: "imóveis, visitas e propostas num painel único para toda a equipe" },
+  { re: /transport|log[ií]stic|frete|entrega|distribui/i, nicho: "transportadoras",
+    dor: "frete e entregas em várias planilhas e uma semana para fechar o mês", ganho: "entregas acompanhadas em tempo real e o fechamento do mês em minutos" },
+  { re: /academia|fitness|crossfit|pilates|studio|est[uú]dio/i, nicho: "academias",
+    dor: "aluno remarcando aula por telefone e recepção sobrecarregada", ganho: "agenda, check-in e cobrança automáticos pelo celular" },
+  { re: /escola|educa|curso|col[eé]gio|ensino|idioma/i, nicho: "escolas",
+    dor: "matrícula, mensalidade e recados aos pais espalhados em planilha e WhatsApp", ganho: "matrículas, cobranças e avisos automáticos" },
+  { re: /contab|advoc|jur[ií]dic|escrit[oó]rio|consultoria/i, nicho: "escritórios",
+    dor: "documentos chegando por e-mail e lançados um por um", ganho: "recebimento e lançamento automáticos, com muito menos digitação" },
+  { re: /ind[uú]stri|f[aá]brica|metal|latic[ií]n|t[eê]xtil|confec|usinag|pl[aá]stic/i, nicho: "indústrias",
+    dor: "ordem de produção e estoque em planilha, com retrabalho e atraso", ganho: "produção, estoque e pedidos integrados, com alerta antes de faltar material" },
+  { re: /varejo|loja|[oó]tica|com[eé]rcio|boutique|moda|cal[cç]ado|farm[aá]cia|pet/i, nicho: "lojas",
+    dor: "estoque, vendas e clientes em controles separados, sem saber o que realmente dá lucro", ganho: "vendas, estoque e clientes num lugar só, com os números do dia na tela" },
+];
+const RAMO_PADRAO = { nicho: "empresas do seu porte", dor: "informação espalhada entre planilhas e WhatsApp, e horas perdidas com retrabalho", ganho: "um sistema feito para o jeito que vocês já trabalham, com tudo num lugar só" };
+
+export function ramoDe(p: Pick<Prospect, "segmento" | "empresa">) {
+  const alvo = `${p.segmento ?? ""} ${p.empresa}`;
+  return RAMOS.find((r) => r.re.test(alvo)) ?? RAMO_PADRAO;
+}
+
+/**
+ * Preenche {{pessoa}}, {{empresa}}, {{seu_nome}} e, pelo ramo da empresa, {{nicho}}, {{dor}}, {{ganho}}
+ * e {{na_cidade}} (" em Campinas" ou nada). Sem pessoa, usa um cumprimento neutro.
+ */
+export function preencher(texto: string, p: Pick<Prospect, "pessoa" | "empresa"> & Partial<Pick<Prospect, "segmento" | "cidade">>, seuNome: string) {
   const primeiro = p.pessoa?.trim().split(/\s+/)[0];
+  const ramo = ramoDe({ segmento: p.segmento ?? null, empresa: p.empresa });
   return texto
     .replace(/\{\{\s*pessoa\s*\}\}/g, primeiro || "pessoal")
     .replace(/\{\{\s*empresa\s*\}\}/g, p.empresa)
-    .replace(/\{\{\s*seu_nome\s*\}\}/g, seuNome.split(/\s+/)[0] || seuNome);
+    .replace(/\{\{\s*seu_nome\s*\}\}/g, seuNome.split(/\s+/)[0] || seuNome)
+    .replace(/\{\{\s*nicho\s*\}\}/g, ramo.nicho)
+    .replace(/\{\{\s*dor\s*\}\}/g, ramo.dor)
+    .replace(/\{\{\s*ganho\s*\}\}/g, ramo.ganho)
+    .replace(/\{\{\s*na_cidade\s*\}\}/g, p.cidade ? ` em ${p.cidade}` : "");
 }
 
 export function mensagemSugerida(p: Prospect, modelos: ModeloProspeccao[], seuNome: string) {
