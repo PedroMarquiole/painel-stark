@@ -149,7 +149,7 @@ export interface Notificacao {
 }
 
 export interface ResultadoBusca {
-  tipo: "lead" | "contato" | "negocio";
+  tipo: "lead" | "contato" | "negocio" | "prospect";
   id: string;
   titulo: string;
   subtitulo: string;

@@ -219,3 +219,37 @@ describe("permissões", () => {
     expect((await asUser(db, null, () => q(`select id from prospects`).catch(() => [])))).toHaveLength(0);
   });
 });
+
+describe("ajustes do pente fino (0016)", () => {
+  it("contato com quem estava em Sem interesse reabre; 'depois' volta para a lista na data", async () => {
+    const id = await novo();
+    await toque(id, "sem_interesse");
+    const d = await diasUteis(5);
+    expect(await toque(id, "depois", { proximo: d })).toMatchObject({ situacao: "contatado", toques: 1, proximo_contato: d });
+    const [p] = await q<{ encerrado_em: string | null }>(`select encerrado_em from prospects where id = $1`, [id]);
+    expect(p.encerrado_em).toBeNull();
+  });
+  it("reaberto depois de 3 contatos ganha mais um ciclo", async () => {
+    const id = await novo();
+    for (let i = 0; i < 3; i++) await toque(id, "enviada");
+    expect((await estado(id)).situacao).toBe("sem_interesse");
+    await como(SOCIO, () => q(`select mudar_situacao_prospect($1, 'acompanhamento')`, [id]));
+    expect((await estado(id)).toques).toBe(2);
+    expect(await toque(id, "enviada")).toMatchObject({ situacao: "sem_interesse" }); // um contato a mais, não fecha no reabrir
+  });
+  it("desfazer devolve data e contatos como estavam", async () => {
+    const id = await novo();
+    await toque(id, "enviada");
+    const antes = await estado(id);
+    await como(SOCIO, () => q(`select mudar_situacao_prospect($1, 'sem_interesse')`, [id]));
+    await como(SOCIO, () => q(`select desfazer_situacao_prospect($1, $2, $3::date, $4)`, [id, antes.situacao, antes.proximo_contato, antes.toques]));
+    expect(await estado(id)).toMatchObject({ situacao: "contatado", proximo_contato: antes.proximo_contato, toques: 1 });
+  });
+  it("quem respondeu já no 1º contato conta como abordado no % de resposta", async () => {
+    const id = await novo({ canal: "whatsapp" });
+    await toque(id, "respondeu", { canal: "whatsapp" });
+    const [r] = await como(DONO, () => q<{ i: { resposta_pct: number; por_canal: { canal: string; pct: number }[] } }>(`select prospeccao_indicadores() as i`));
+    expect(r.i.resposta_pct).toBe(100);
+    expect(r.i.por_canal).toEqual([expect.objectContaining({ canal: "whatsapp", pct: 100 })]);
+  });
+});

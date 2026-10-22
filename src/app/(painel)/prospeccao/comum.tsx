@@ -22,7 +22,7 @@ const ICONES: Record<CanalProspect, { Icone: typeof Mail | typeof In; cor: strin
 export function IconeCanal({ canal, className }: { canal: CanalProspect; className?: string }) {
   const { Icone, cor } = ICONES[canal] ?? { Icone: AtSign, cor: "text-fg-muted" };
   return (
-    <span title={CANAIS_PROSPECT[canal]} className={cn("grid size-8 shrink-0 place-items-center rounded-full bg-bloco [&_svg]:size-4", cor, className)}>
+    <span title={CANAIS_PROSPECT[canal]} className={cn("relative grid size-8 shrink-0 place-items-center rounded-full bg-bloco [&_svg]:size-4", cor, className)}>
       <Icone aria-hidden /><span className="sr-only">{CANAIS_PROSPECT[canal]}</span>
     </span>
   );

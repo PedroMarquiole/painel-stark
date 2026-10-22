@@ -18,7 +18,7 @@ const STATUS: Record<Status, { rotulo: string; tom: string }> = {
   repetido: { rotulo: "Já está na prospecção", tom: "text-fg-muted" },
   cliente: { rotulo: "Já é contato do painel", tom: "text-fg-muted" },
   nao_abordar: { rotulo: "Pediu para não ser abordado", tom: "text-danger" },
-  sem_contato: { rotulo: "Sem nenhum contato", tom: "text-warning" },
+  sem_contato: { rotulo: "Entra, mas sem contato", tom: "text-warning" },
   sem_empresa: { rotulo: "Sem nome da empresa", tom: "text-warning" },
 };
 
@@ -107,7 +107,7 @@ export function Importar({ aberto, setAberto, onImportado }: { aberto: boolean; 
       if (!r.ok) return void toast.error(r.erro);
       const novos = r.dados?.novos ?? conferido?.novos ?? 0;
       toast.success(`${novos} ${novos === 1 ? "empresa entrou" : "empresas entraram"} na prospecção`, {
-        description: `Distribuídas em até ${porDia} por dia útil, a partir de hoje.`,
+        description: `Distribuídas em até ${porDia} por dia útil, a partir do próximo dia útil.`,
       });
       setAberto(false);
       onImportado();
@@ -196,7 +196,7 @@ export function Importar({ aberto, setAberto, onImportado }: { aberto: boolean; 
               ["Já na prospecção", conferido.repetidos, ""],
               ["Já são contatos", conferido.clientes, ""],
               ["Não abordar", conferido.bloqueados, "text-danger"],
-              ["Sem contato", conferido.sem_contato, "text-warning"],
+              ["Entram sem contato", conferido.sem_contato, "text-warning"],
               ["Sem empresa", conferido.sem_empresa, "text-warning"],
             ] as [string, number, string][]).filter(([, n], i) => i === 0 || n > 0).map(([r, n, tom]) => (
               <div key={r} className="rounded-xl bg-bloco-inset px-3 py-2">
@@ -205,11 +205,14 @@ export function Importar({ aberto, setAberto, onImportado }: { aberto: boolean; 
               </div>
             ))}
           </dl>
+          {conferido.sem_contato > 0 && (
+            <p className="text-xs text-warning">{conferido.sem_contato} {conferido.sem_contato === 1 ? "entra" : "entram"} sem nenhum contato (e-mail, WhatsApp, LinkedIn…): dá para completar depois na ficha.</p>
+          )}
           {conferido.novos < linhas.length && (
             <details className="text-sm">
               <summary className="cursor-pointer text-fg-muted">Ver as {linhas.length - conferido.novos} que ficam de fora</summary>
               <ul className="mt-2 flex max-h-40 flex-col gap-1 overflow-y-auto">
-                {conferido.linhas.filter((l) => l.status !== "novo").map((l) => (
+                {conferido.linhas.filter((l) => l.status !== "novo" && l.status !== "sem_contato").map((l) => (
                   <li key={l.linha} className="flex justify-between gap-3 text-xs">
                     <span className="truncate">Linha {l.linha + 1}: {linhas[l.linha - 1]?.empresa || "(sem empresa)"}</span>
                     <span className={STATUS[l.status].tom}>{STATUS[l.status].rotulo}</span>

@@ -115,7 +115,10 @@ export function lerTexto(texto: string): string[][] {
   return linhas.map((l) => l.map((x) => x.trim())).filter((l) => l.some(Boolean));
 }
 
-const xml = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+const xml = (s: string) => s
+  .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+  .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+  .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 const colunaIdx = (ref: string) => [...ref.replace(/\d+/g, "")].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
 
 /** Primeira aba de um .xlsx, como linhas de texto. */
@@ -176,7 +179,13 @@ export type ResultadoToque = "enviada" | "respondeu" | "depois" | "sem_interesse
 /** Mesmas regras de registrar_toque_prospect, para a tela mudar na hora (o banco confirma em seguida). */
 export function simularToque(p: Prospect, resultado: ResultadoToque, ritmo: number[], hoje: string, proximo?: string | null): Partial<Prospect> {
   if (resultado === "nota") return {};
-  const base = { ultimo_contato_em: new Date().toISOString() };
+  const base: Partial<Prospect> = { ultimo_contato_em: new Date().toISOString() };
+  // contato com quem estava encerrado reabre, com mais um ciclo
+  if (p.situacao === "sem_interesse" && resultado !== "sem_interesse") {
+    const toques = Math.min(p.toques, ritmo.length);
+    p = { ...p, toques, situacao: toques === 0 ? "a_abordar" : "acompanhamento", encerrado_em: null, motivo_encerramento: null };
+    Object.assign(base, { encerrado_em: null, motivo_encerramento: null });
+  }
   if (resultado === "enviada") {
     const toques = p.toques + 1;
     if (toques >= ritmo.length + 1) {
@@ -184,8 +193,10 @@ export function simularToque(p: Prospect, resultado: ResultadoToque, ritmo: numb
     }
     return { ...base, toques, situacao: toques === 1 ? "contatado" : "acompanhamento", proximo_contato: proximo || somarDiasUteis(hoje, ritmo[toques - 1]) };
   }
-  if (resultado === "respondeu") return { ...base, situacao: "respondeu", proximo_contato: proximo || somarDiasUteis(hoje, 1) };
-  if (resultado === "depois") return { ...base, situacao: p.situacao === "a_abordar" ? "contatado" : p.situacao, proximo_contato: proximo ?? p.proximo_contato };
+  if (resultado === "respondeu") return { ...base, toques: Math.max(p.toques, 1), situacao: "respondeu", proximo_contato: proximo || somarDiasUteis(hoje, 1) };
+  if (resultado === "depois") {
+    return { ...base, toques: Math.max(p.toques, 1), situacao: p.situacao === "a_abordar" || p.situacao === "contatado" ? "contatado" : p.situacao, proximo_contato: proximo ?? p.proximo_contato };
+  }
   return { ...base, situacao: "sem_interesse", proximo_contato: null, encerrado_em: new Date().toISOString() };
 }
 

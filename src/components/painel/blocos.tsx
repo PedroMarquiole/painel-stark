@@ -93,7 +93,7 @@ export function Periodo({ dias, base = "/" }: { dias: number; base?: string }) {
   return (
     <div role="group" aria-label="Período" className="inline-flex h-10 items-center gap-0.5 rounded-full bg-bloco p-1 shadow-bloco">
       {[7, 30, 90].map((d) => (
-        <button key={d} aria-pressed={dias === d} onClick={() => router.push(`${base}?dias=${d}`)}
+        <button key={d} aria-pressed={dias === d} onClick={() => d !== dias && router.push(`${base}?dias=${d}`)}
           className={cn("h-full rounded-full px-3.5 text-xs font-medium transition-colors",
             dias === d ? "bg-invert text-invert-fg" : "text-fg-muted hover:text-fg")}>
           {d} dias

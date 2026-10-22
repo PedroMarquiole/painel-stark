@@ -53,14 +53,23 @@ export async function listarLeadsInbox(dias = 14): Promise<LeadInbox[]> {
   if (OFFLINE) return fx.leads();
   const janela = Math.min(Math.max(dias, 14), 90);
   const sb = await supabaseServidor();
-  const { data, error } = await sb
-    .from("leads")
-    .select(SELECT_LEAD)
-    .or(`status.in.(novo,em_atendimento),created_at.gte.${diasAtras(janela)}`)
-    .order("created_at", { ascending: false })
-    .limit(janela > 14 ? 1000 : 300);
-  if (error) throw new Error(error.message);
-  return (data as unknown as LinhaLead[]).map(paraInbox);
+  // Duas consultas: os sem resposta (todos, por mais antigos que sejam: são os de prazo estourado)
+  // e o resto do que está aberto ou chegou na janela, com limite.
+  const [semResp, resto] = await Promise.all([
+    sb.from("leads").select(SELECT_LEAD).in("status", ["novo", "em_atendimento"]).is("primeira_resposta_em", null)
+      .order("created_at", { ascending: false }).limit(1000),
+    sb.from("leads").select(SELECT_LEAD)
+      .or(`status.in.(novo,em_atendimento),created_at.gte.${diasAtras(janela)}`)
+      .order("created_at", { ascending: false })
+      .limit(janela > 14 ? 1000 : 300),
+  ]);
+  if (semResp.error) throw new Error(semResp.error.message);
+  if (resto.error) throw new Error(resto.error.message);
+  const vistos = new Set<string>();
+  return ([...(semResp.data ?? []), ...(resto.data ?? [])] as unknown as LinhaLead[])
+    .filter((l) => !vistos.has(l.id) && vistos.add(l.id))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map(paraInbox);
 }
 
 export async function buscarLeadInbox(id: string): Promise<LeadInbox | null> {
@@ -87,7 +96,7 @@ export async function detalheLead(id: string): Promise<LeadDetalhe | null> {
   const { data: l } = await sb
     .from("leads")
     .select(`${SELECT_LEAD}, motivo_descarte, prazo, investimento, porte, respostas_extras, simulador, utm_medium, utm_campaign, consentimento_lgpd_em,
-             contato_full:contatos(id, nome, email, whatsapp, cargo, opt_out_email), negocio:negocios(id, titulo, etapa, valor_estimado)`)
+             contato_full:contatos(id, nome, email, whatsapp, cargo, opt_out_email), negocio_full:negocios!leads_negocio_id_fkey(id, titulo, etapa, valor_estimado)`)
     .eq("id", id)
     .maybeSingle();
   if (!l) return null;
@@ -107,7 +116,7 @@ export async function detalheLead(id: string): Promise<LeadDetalhe | null> {
     utm: { source: linha.utm_source, medium: linha.utm_medium as string | null, campaign: linha.utm_campaign as string | null },
     consentimento_lgpd_em: linha.consentimento_lgpd_em as string | null,
     contato: linha.contato_full as LeadDetalhe["contato"],
-    negocio: linha.negocio as LeadDetalhe["negocio"],
+    negocio: linha.negocio_full as LeadDetalhe["negocio"],
     outros_pedidos: outros.data ?? [],
     atividades,
   };
@@ -136,7 +145,8 @@ export async function listarNegocios(): Promise<NegocioCard[]> {
     const c = contato as unknown as { nome: string; email: string | null; whatsapp: string | null; empresa: { nome: string } | null } | null;
     const pedidos = ((leads ?? []) as { id: string; protocolo: number; primeira_resposta_em: string | null; sla_vence_em: string; status: string }[])
       .sort((a, b) => a.protocolo - b.protocolo);
-    const pendente = pedidos.find((x) => !x.primeira_resposta_em && x.status !== "descartado");
+    // Mesma regra da caixa e do Início (pedidos.ts): pedido em aberto sem 1ª resposta
+    const pendente = pedidos.find((x) => !x.primeira_resposta_em && (x.status === "novo" || x.status === "em_atendimento"));
     return {
       ...n,
       contato_nome: c?.nome ?? "—",
@@ -144,7 +154,7 @@ export async function listarNegocios(): Promise<NegocioCard[]> {
       protocolo: pedidos[0]?.protocolo ?? null,
       lead_id: pedidos[0]?.id ?? null,
       // negócio criado à mão (sem pedido) conta como já em conversa
-      respondido: pedidos.length === 0 || pedidos.some((x) => x.primeira_resposta_em),
+      respondido: !pendente,
       sla_vence_em: pendente?.sla_vence_em ?? null,
       contato_email: c?.email ?? null,
       contato_whatsapp: c?.whatsapp ?? null,
@@ -224,17 +234,17 @@ export async function buscar(qBruto: string): Promise<ResultadoBusca[]> {
   if (OFFLINE) return fx.buscar(q);
   const sb = await supabaseServidor();
   const num = Number(q.replace(/^#/, ""));
-  const [contatos, negocios, porProtocolo] = await Promise.all([
-    sb.from("contatos").select("id, nome, email, empresa:empresas(nome)").or(`nome.ilike.%${q}%,email.ilike.%${q}%`).limit(6),
-    sb.from("negocios").select("id, titulo, etapa, contato_id").ilike("titulo", `%${q}%`).limit(4),
+  const [achados, porProtocolo] = await Promise.all([
+    // sem diferença de acento; também por empresa e telefone (migração 0015)
+    sb.rpc("buscar_painel" as never, { p_termo: q } as never) as unknown as Promise<{ data: { tipo: "contato" | "negocio" | "prospect"; id: string; titulo: string; subtitulo: string }[] | null }>,
     Number.isInteger(num) && num > 0
       ? sb.from("leads").select("id, protocolo, nome_informado").eq("protocolo", num).limit(1)
       : Promise.resolve({ data: [] as { id: string; protocolo: number; nome_informado: string }[] }),
   ]);
+  const HREF = { contato: (id: string) => `/clientes/${id}`, negocio: (id: string) => `/funil?id=${id}`, prospect: (id: string) => `/prospeccao?id=${id}` };
   return [
     ...(porProtocolo.data ?? []).map((l) => ({ tipo: "lead" as const, id: l.id, titulo: `#${String(l.protocolo).padStart(4, "0")} · ${l.nome_informado}`, subtitulo: "Pedido", href: `/leads?id=${l.id}` })),
-    ...(contatos.data ?? []).map((c) => ({ tipo: "contato" as const, id: c.id, titulo: c.nome, subtitulo: [(c.empresa as unknown as { nome: string } | null)?.nome, c.email].filter(Boolean).join(" · "), href: `/clientes/${c.id}` })),
-    ...(negocios.data ?? []).map((n) => ({ tipo: "negocio" as const, id: n.id, titulo: n.titulo, subtitulo: "Negócio", href: `/clientes/${n.contato_id}` })),
+    ...(achados.data ?? []).map((r) => ({ ...r, subtitulo: r.subtitulo ?? "", href: HREF[r.tipo](r.id) })),
   ];
 }
 
@@ -265,9 +275,14 @@ async function respostasRecentes(ids: string[]) {
 export async function listarProspects(): Promise<Prospect[]> {
   if (OFFLINE) return fx.prospects();
   const sb = await supabaseServidor();
-  const { data, error } = await sb.from("prospects").select(SELECT_PROSPECT).order("created_at", { ascending: true }).limit(3000);
-  if (error) throw new Error(error.message);
-  const linhas = (data ?? []) as unknown as LinhaProspect[];
+  // O Supabase devolve no máximo 1.000 linhas por vez: busca em páginas
+  const linhas: LinhaProspect[] = [];
+  for (let de = 0; de < 10_000; de += 1000) {
+    const { data, error } = await sb.from("prospects").select(SELECT_PROSPECT).order("created_at", { ascending: true }).order("id").range(de, de + 999);
+    if (error) throw new Error(error.message);
+    linhas.push(...((data ?? []) as unknown as LinhaProspect[]));
+    if ((data ?? []).length < 1000) break;
+  }
   const resp = await respostasRecentes(linhas.filter((p) => p.situacao === "respondeu").map((p) => p.id));
   return linhas.map(({ lista, ...p }) => ({ ...p, lista_nome: lista?.nome ?? null, ultima_resposta: resp.get(p.id) ?? null }));
 }
@@ -312,6 +327,6 @@ export async function configProspeccao(): Promise<ConfigProspeccao> {
   const v = Object.fromEntries((data ?? []).map((x) => [x.chave, x.valor]));
   return {
     ritmo: Array.isArray(v.prospeccao_ritmo) ? (v.prospeccao_ritmo as number[]) : [3, 4],
-    meta_semana: typeof v.prospeccao_meta_semana === "number" ? v.prospeccao_meta_semana : null,
+    meta_semana: typeof v.prospeccao_meta_semana === "number" && v.prospeccao_meta_semana > 0 ? v.prospeccao_meta_semana : null,
   };
 }

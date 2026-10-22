@@ -18,6 +18,7 @@ export function Notificacoes({ iniciais }: { iniciais: Notificacao[] }) {
   const { perfil, offline } = usePainel();
   const router = useRouter();
   const [itens, setItens] = React.useState(iniciais);
+  React.useEffect(() => setItens(iniciais), [iniciais]); // dados novos do servidor (ex.: sem realtime) entram no sino
   const naoLidas = itens.filter((n) => !n.lida_em).length;
   const agora = useNow();
 

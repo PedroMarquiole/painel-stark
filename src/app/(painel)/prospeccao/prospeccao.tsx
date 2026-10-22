@@ -2,8 +2,8 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  DndContext, DragOverlay, KeyboardCode, KeyboardSensor, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors,
-  type DragEndEvent,
+  DndContext, DragOverlay, KeyboardCode, closestCenter, pointerWithin, KeyboardSensor, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors,
+  type CollisionDetection, type DragEndEvent,
 } from "@dnd-kit/core";
 import { ArrowDown, ArrowUp, ChevronsRight, Crosshair, Plus, Search, Settings2, Upload, UserPlus } from "lucide-react";
 import { toast } from "sonner";
@@ -21,7 +21,7 @@ import { cn, formatBRL } from "@/lib/utils";
 import { CANAIS_PROSPECT, SITUACOES_PROSPECT, type CanalProspect, type SituacaoProspect } from "@/lib/rotulos";
 import type { ConfigProspeccao, ModeloProspeccao, ProspeccaoIndicadores, Prospect } from "@/lib/dados/tipos";
 import { ATIVAS, atrasado, hojeSp, linkDoCanal, mensagemSugerida, ordenarHoje, paraHoje, rotuloDia } from "@/lib/prospeccao";
-import { mudarSituacao } from "./acoes";
+import { desfazerSituacao, mudarSituacao } from "./acoes";
 import { IconeCanal, Pontos, Proximo, SeloSituacao } from "./comum";
 import { FichaProspect } from "./ficha";
 import { NovoProspect } from "./novo";
@@ -29,6 +29,8 @@ import { Importar } from "./importar";
 import { Ajustes } from "./ajustes";
 
 type Ver = "hoje" | "pipeline" | "lista";
+/** Vale a coluna sob o ponteiro (o card arrastado é largo e cobria a coluna estreita de Encerrados). */
+const soltarOnde: CollisionDetection = (a) => { const sob = pointerWithin(a); return sob.length ? sob : closestCenter(a); };
 const lerPref = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const gravarPref = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* sem armazenamento: só não lembra */ } };
 
@@ -53,10 +55,11 @@ export function Prospeccao({ iniciais, indicadores, modelos: modelosIniciais, co
   const [novo, setNovo] = React.useState(false);
   const [importar, setImportar] = React.useState(false);
   const [ajustes, setAjustes] = React.useState(false);
-  const [contatosFeitos, setContatosFeitos] = React.useState(0); // registrados nesta visita (somam aos da semana)
   const podeAgir = perfil.papel !== "projetos";
 
   React.useEffect(() => setProspects(iniciais), [iniciais]);
+  React.useEffect(() => setModelos(modelosIniciais), [modelosIniciais]);
+  React.useEffect(() => setConfig(configInicial), [configInicial]);
   React.useEffect(() => {
     const v = lerPref("prospeccao:ver");
     if (v === "hoje" || v === "pipeline" || v === "lista") setVer(v);
@@ -90,7 +93,7 @@ export function Prospeccao({ iniciais, indicadores, modelos: modelosIniciais, co
   const doDia = prospects.filter((p) => paraHoje(p, hoje));
   const nAtrasados = doDia.filter((p) => atrasado(p, hoje)).length;
   const nAbordar = prospects.filter((p) => p.situacao === "a_abordar").length;
-  const semana = indicadores.contatos_semana + contatosFeitos;
+  const semana = indicadores.contatos_semana; // o servidor recalcula a cada contato registrado
   const totalRitmo = config.ritmo.length + 1;
   const selecionado = prospects.find((p) => p.id === aberto) ?? null;
 
@@ -170,7 +173,6 @@ export function Prospeccao({ iniciais, indicadores, modelos: modelosIniciais, co
         config={config}
         onFechar={fechar}
         onAtualizar={atualizar}
-        onContatoFeito={() => setContatosFeitos((n) => n + 1)}
       />
       <NovoProspect aberto={novo} setAberto={setNovo} onCriado={(p) => { setProspects((xs) => [...xs, p]); abrir(p.id, "registrar"); }} />
       <Importar aberto={importar} setAberto={setImportar} onImportado={() => router.refresh()} />
@@ -333,7 +335,7 @@ function Pipeline({ itens, hoje, totalRitmo, podeAgir, onAbrir, onAtualizar }: {
     if (destino === "interessado") return onAbrir(p.id); // criar negócio pede e-mail/WhatsApp e serviço, na ficha
     const para: SituacaoProspect = destino === "encerrados" ? "sem_interesse" : destino;
     if (destino === "encerrados" && (p.situacao === "sem_interesse" || p.situacao === "nao_abordar")) return;
-    const antes = { situacao: p.situacao, proximo_contato: p.proximo_contato, toques: p.toques };
+    const antes = { situacao: p.situacao, proximo_contato: p.proximo_contato, toques: p.toques, motivo_encerramento: p.motivo_encerramento };
     onAtualizar(p.id, { situacao: para, proximo_contato: para === "sem_interesse" ? null : p.proximo_contato ?? hoje, toques: para === "a_abordar" ? 0 : p.toques });
     const r = await chamar(mudarSituacao(p.id, para as Exclude<SituacaoProspect, "interessado">));
     if (!r.ok) { onAtualizar(p.id, antes); return void toast.error(r.erro); }
@@ -344,7 +346,7 @@ function Pipeline({ itens, hoje, totalRitmo, podeAgir, onAbrir, onAtualizar }: {
         label: "Desfazer",
         onClick: async () => {
           onAtualizar(p.id, antes);
-          const d = await chamar(mudarSituacao(p.id, antes.situacao as Exclude<SituacaoProspect, "interessado">));
+          const d = await chamar(desfazerSituacao(p.id, antes));
           if (!d.ok) toast.error(d.erro);
         },
       },
@@ -352,7 +354,7 @@ function Pipeline({ itens, hoje, totalRitmo, podeAgir, onAbrir, onAtualizar }: {
   }
 
   return (
-    <DndContext id="prospeccao" sensors={sensores} onDragStart={(e) => setArrastando(String(e.active.id))} onDragEnd={soltar} onDragCancel={() => setArrastando(null)}
+    <DndContext id="prospeccao" sensors={sensores} collisionDetection={soltarOnde} onDragStart={(e) => setArrastando(String(e.active.id))} onDragEnd={soltar} onDragCancel={() => setArrastando(null)}
       accessibility={{ screenReaderInstructions: { draggable: "Espaço pega o card. Setas mudam de coluna. Espaço solta, Esc cancela." } }}>
       <p id="dica-prospect" className="sr-only">Enter abre a ficha. Espaço pega o card; setas mudam de coluna; Espaço solta.</p>
       <div className="flex gap-3 overflow-x-auto pb-2">
