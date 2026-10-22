@@ -316,7 +316,7 @@ export async function indicadoresProspeccao(): Promise<ProspeccaoIndicadores> {
 export async function modelosProspeccao(): Promise<ModeloProspeccao[]> {
   if (OFFLINE) return fx.modelosProspeccao;
   const sb = await supabaseServidor();
-  const { data } = await sb.from("prospeccao_modelos").select("canal, toque, texto").order("canal").order("toque");
+  const { data } = await sb.from("prospeccao_modelos").select("canal, toque, texto, assunto" as "canal, toque, texto").order("canal").order("toque");
   return (data ?? []) as ModeloProspeccao[];
 }
 
@@ -329,4 +329,13 @@ export async function configProspeccao(): Promise<ConfigProspeccao> {
     ritmo: Array.isArray(v.prospeccao_ritmo) ? (v.prospeccao_ritmo as number[]) : [3, 4],
     meta_semana: typeof v.prospeccao_meta_semana === "number" && v.prospeccao_meta_semana > 0 ? v.prospeccao_meta_semana : null,
   };
+}
+
+// ─── Envios que falharam (aviso no topo do painel) ──────────────────────────
+export interface FalhaEnvio { erro: string; n: number; ultimo: string }
+export async function falhasEnvio(): Promise<FalhaEnvio[]> {
+  if (OFFLINE) return [];
+  const sb = await supabaseServidor();
+  const { data } = await sb.rpc("envios_com_falha" as never);
+  return (data ?? []) as unknown as FalhaEnvio[];
 }

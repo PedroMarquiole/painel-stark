@@ -36,7 +36,7 @@ describe("mensagem sugerida", () => {
     { canal: "linkedin", toque: 2, texto: "2º para {{pessoa}}" },
   ];
   it("usa o modelo do canal e do número do contato, com o primeiro nome", () => {
-    expect(mensagemSugerida(p({ toques: 0 }), modelos, "Pedro Marquiole")).toEqual({ n: 1, texto: "Oi, Renata! Sou Pedro. Construtora Lima" });
+    expect(mensagemSugerida(p({ toques: 0 }), modelos, "Pedro Marquiole")).toEqual({ n: 1, texto: "Oi, Renata! Sou Pedro. Construtora Lima", assunto: "Stark · Construtora Lima" });
     expect(mensagemSugerida(p({ toques: 1 }), modelos, "Pedro")?.texto).toBe("2º para Renata");
   });
   it("sem pessoa, cumprimento neutro", () => {

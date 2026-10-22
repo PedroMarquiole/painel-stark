@@ -25,6 +25,7 @@ export function traduzir(msg: string): string {
   if (msg.includes("prospects_linkedin_uniq")) return "Já existe um prospect com esse LinkedIn.";
   if (msg.includes("prospects_site_uniq")) return "Já existe um prospect com esse site.";
   if (msg.includes("nao_abordar")) return "Este prospect pediu para não ser abordado. Reabra antes de registrar contato.";
+  if (msg.includes("sem_email")) return "Este prospect não tem e-mail. Adicione o e-mail na ficha.";
   if (msg.includes("ja_virou_negocio")) return "Este prospect já virou negócio. Continue pelo Funil.";
   if (msg.includes("data_no_passado")) return "Escolha uma data de hoje em diante.";
   if (msg.includes("informe_a_data")) return "Escolha quando falar de novo.";

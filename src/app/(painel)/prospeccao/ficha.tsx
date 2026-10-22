@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Ban, Check, Copy, Handshake, RotateCcw, ThumbsDown } from "lucide-react";
+import { ArrowUpRight, Ban, Check, Copy, Handshake, RotateCcw, Send, ThumbsDown } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
 } from "@/lib/prospeccao";
 import { atualizarProspect, carregarToques, converterEmNegocio, desfazerSituacao, mudarSituacao, registrarToque, type DadosProspect } from "./acoes";
 import { Pontos, Proximo, SeloSituacao } from "./comum";
+import { podeEnviar, rotuloEnviar, useEnvio } from "./envio";
 
 const RESULTADOS: { id: ResultadoToque; rotulo: string }[] = [
   { id: "enviada", rotulo: "Mandei, sem resposta" },
@@ -50,6 +51,9 @@ export function FichaProspect({ prospect: p, aberto, foco, modelos, config, onFe
   const [anotacao, setAnotacao] = React.useState("");
   const [data, setData] = React.useState("");
   const [mensagem, setMensagem] = React.useState("");
+  const [assunto, setAssunto] = React.useState("");
+  const enviar = useEnvio({ config, onAtualizar });
+  const [enviandoMsg, setEnviandoMsg] = React.useState(false);
   const [converter, setConverter] = React.useState(false);
   const ocupado = React.useRef(false);
   const [enviando, setEnviando] = React.useState(false);
@@ -74,6 +78,7 @@ export function FichaProspect({ prospect: p, aberto, foco, modelos, config, onFe
     if (!p) return;
     const m = modelos.find((x) => x.canal === canal && x.toque === n) ?? modelos.find((x) => x.canal === canal);
     setMensagem(m ? preencher(m.texto, p, perfil.nome) : "");
+    setAssunto(preencher(m?.assunto || "Stark · {{empresa}}", p, perfil.nome));
   }, [p?.id, canal, n, modelos]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     if (aberto && foco === "registrar") setTimeout(() => registrarRef.current?.scrollIntoView({ block: "center" }), 80);
@@ -151,7 +156,6 @@ export function FichaProspect({ prospect: p, aberto, foco, modelos, config, onFe
     try { await navigator.clipboard.writeText(mensagem); toast.success("Mensagem copiada"); }
     catch { toast.error("Não deu para copiar. Selecione o texto e copie."); }
   };
-  const abrirCom = linkDoCanal(p, canal, mensagem);
   const links = [
     p.linkedin && { href: linkLinkedin(p.linkedin), rotulo: "LinkedIn" },
     p.whatsapp && { href: linkWhatsapp(p.whatsapp), rotulo: `WhatsApp ${formatarTelefone(p.whatsapp)}` },
@@ -194,23 +198,49 @@ export function FichaProspect({ prospect: p, aberto, foco, modelos, config, onFe
         {ativo && (
           <section className="rounded-xl bg-bloco-inset p-4">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-xs font-medium text-fg-muted">Mensagem sugerida · {n}º contato por {CANAIS_PROSPECT[canal]}</h3>
+              <h3 className="text-xs font-medium text-fg-muted">Mensagem do {n}º contato</h3>
+              <div className="flex flex-wrap gap-1" role="group" aria-label="Enviar por">
+                {(["email", "whatsapp", "linkedin", "instagram"] as CanalProspect[]).map((c) => (
+                  <button key={c} type="button" aria-pressed={canal === c} onClick={() => setCanal(c)} disabled={!podeEnviar(p, c)}
+                    title={podeEnviar(p, c) ? undefined : `Sem ${CANAIS_PROSPECT[c]} cadastrado`}
+                    className={cn("h-7 rounded-full border px-2.5 text-xs transition-colors disabled:opacity-40", canal === c ? "border-transparent bg-accent-soft text-fg" : "border-border bg-bloco text-fg-muted hover:border-border-strong")}>
+                    {CANAIS_PROSPECT[c]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {canal === "email" && (
+              <Input value={assunto} onChange={(e) => setAssunto(e.target.value)} className="mb-2 bg-bloco" aria-label="Assunto do e-mail" placeholder="Assunto" />
+            )}
+            <Textarea value={mensagem} onChange={(e) => setMensagem(e.target.value)} className="min-h-36 bg-bloco" aria-label="Mensagem" />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-fg-subtle">
+                {canal === "email" ? "O painel envia o e-mail e registra o contato."
+                  : canal === "whatsapp" ? "Abre o WhatsApp com a mensagem pronta: é só apertar enviar. O contato fica registrado."
+                  : podeEnviar(p, canal) ? `Copia a mensagem e abre o ${CANAIS_PROSPECT[canal]}: é só colar. O contato fica registrado.`
+                  : `Sem ${CANAIS_PROSPECT[canal]} cadastrado: copie e registre abaixo.`}
+              </p>
               <div className="flex gap-1.5">
                 <Button size="sm" variant="secondary" onClick={copiar} className="bg-bloco"><Copy /> Copiar</Button>
-                {abrirCom && (canal === "whatsapp" || canal === "email") && (
-                  <Button size="sm" variant="secondary" asChild className="bg-bloco"><a href={abrirCom.href} target="_blank" rel="noreferrer">{abrirCom.rotulo} com o texto</a></Button>
+                {podeAgir && podeEnviar(p, canal) && (
+                  <Button size="sm" variant="primary" disabled={enviandoMsg} onClick={async () => {
+                    setEnviandoMsg(true);
+                    const ok = await enviar(p, canal, { texto: mensagem, assunto });
+                    setEnviandoMsg(false);
+                    if (ok) {
+                      adicionarToque({ canal, resultado: "enviada", anotacao: canal === "email" ? `E-mail: ${assunto}` : `Mensagem pelo ${CANAIS_PROSPECT[canal]}` });
+                    }
+                  }}><Send /> {enviandoMsg ? "Enviando…" : rotuloEnviar(canal)}</Button>
                 )}
               </div>
             </div>
-            <Textarea value={mensagem} onChange={(e) => setMensagem(e.target.value)} className="min-h-28 bg-bloco" aria-label="Mensagem sugerida" />
-            <p className="mt-2 text-xs text-fg-subtle">Edite à vontade antes de copiar. O painel não envia nada sozinho: você manda pelo seu {CANAIS_PROSPECT[canal]}.</p>
           </section>
         )}
 
         {podeAgir && p.situacao !== "interessado" && p.situacao !== "nao_abordar" && (
           <div ref={registrarRef}>
             <form onSubmit={registrar} className="flex flex-col gap-3 rounded-xl border border-accent/40 p-4">
-              <h3 className="text-md font-medium">Registrar contato</h3>
+              <h3 className="text-md font-medium">Registrar contato <span className="text-xs font-normal text-fg-muted">(ligação, resposta ou contato feito fora do painel)</span></h3>
               <fieldset className="flex flex-wrap items-center gap-1.5">
                 <legend className="mb-1.5 text-xs text-fg-muted">Canal</legend>
                 {(Object.keys(CANAIS_PROSPECT) as CanalProspect[]).map((c) => (

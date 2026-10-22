@@ -253,3 +253,29 @@ describe("ajustes do pente fino (0016)", () => {
     expect(r.i.por_canal).toEqual([expect.objectContaining({ canal: "whatsapp", pct: 100 })]);
   });
 });
+
+describe("enviar e-mail com 1 clique (0017)", () => {
+  it("põe o e-mail na fila e registra o contato", async () => {
+    const id = await novo({ email: "renata@lima.com.br" });
+    const [r] = await como(SOCIO, () => q<{ r: { situacao: string; toques: number; mensagem_id: string } }>(
+      `select enviar_email_prospect($1, 'Assunto', 'Corpo') as r`, [id]));
+    expect(r.r).toMatchObject({ situacao: "contatado", toques: 1 });
+    const [m] = await q<{ destinatario: string; status: string; assunto: string }>(`select destinatario, status, assunto from mensagens_saida where id = $1`, [r.r.mensagem_id]);
+    expect(m).toEqual({ destinatario: "renata@lima.com.br", status: "pendente", assunto: "Assunto" });
+  });
+  it("sem e-mail ou não abordar: recusa", async () => {
+    const sem = await novo();
+    await expect(como(SOCIO, () => q(`select enviar_email_prospect($1, 'A', 'B')`, [sem]))).rejects.toThrow(/sem_email/);
+    const bloq = await novo({ email: "x@y.com", linkedin: "linkedin.com/in/outro" });
+    await como(SOCIO, () => q(`select mudar_situacao_prospect($1, 'nao_abordar')`, [bloq]));
+    await expect(como(SOCIO, () => q(`select enviar_email_prospect($1, 'A', 'B')`, [bloq]))).rejects.toThrow(/nao_abordar/);
+  });
+  it("Resend em modo de teste: para na hora e o aviso explica", async () => {
+    const [m] = await q<{ id: string }>(`insert into mensagens_saida (canal, destino_tipo, destinatario, corpo, chave_idempotencia) values ('email', 'cliente', 'a@b.com', 'x', 'k1') returning id`);
+    await q(`select concluir_mensagem($1, false, null, null, 'resend 403: You can only send testing emails to your own email address')`, [m.id]);
+    const [s] = await q<{ tentativas: number; max_tentativas: number }>(`select tentativas, max_tentativas from mensagens_saida where id = $1`, [m.id]);
+    expect(s.tentativas).toBe(s.max_tentativas);
+    const [n] = await q<{ corpo: string }>(`select corpo from notificacoes where tipo = 'envio_falhou' order by created_at desc limit 1`);
+    expect(n.corpo).toMatch(/verifique o domínio/);
+  });
+});

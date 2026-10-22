@@ -5,7 +5,7 @@ import {
   DndContext, DragOverlay, KeyboardCode, closestCenter, pointerWithin, KeyboardSensor, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors,
   type CollisionDetection, type DragEndEvent,
 } from "@dnd-kit/core";
-import { ArrowDown, ArrowUp, ChevronsRight, Crosshair, Plus, Search, Settings2, Upload, UserPlus } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsRight, Crosshair, Plus, Search, Send, Settings2, Upload, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import { ATIVAS, atrasado, hojeSp, linkDoCanal, mensagemSugerida, ordenarHoje, p
 import { desfazerSituacao, mudarSituacao } from "./acoes";
 import { IconeCanal, Pontos, Proximo, SeloSituacao } from "./comum";
 import { FichaProspect } from "./ficha";
+import { podeEnviar, rotuloEnviar, useEnvio } from "./envio";
 import { NovoProspect } from "./novo";
 import { Importar } from "./importar";
 import { Ajustes } from "./ajustes";
@@ -157,7 +158,7 @@ export function Prospeccao({ iniciais, indicadores, modelos: modelosIniciais, co
             action={podeAgir ? <div className="flex gap-2"><Button onClick={() => setImportar(true)}><Upload /> Importar planilha</Button><Button variant="primary" onClick={() => setNovo(true)}><Plus /> Novo prospect</Button></div> : undefined} />
         </Bloco>
       ) : ver === "hoje" ? (
-        <Hoje itens={visiveis} hoje={hoje} totalRitmo={totalRitmo} modelos={modelos} indicadores={indicadores} config={config}
+        <Hoje itens={visiveis} hoje={hoje} totalRitmo={totalRitmo} modelos={modelos} indicadores={indicadores} config={config} onAtualizar={atualizar}
           podeAgir={podeAgir} onAbrir={abrir} onAjustes={() => setAjustes(true)} />
       ) : ver === "pipeline" ? (
         <Pipeline itens={visiveis} hoje={hoje} totalRitmo={totalRitmo} podeAgir={podeAgir} onAbrir={abrir} onAtualizar={atualizar} />
@@ -193,11 +194,13 @@ function Numero({ rotulo, valor, detalhe, alerta, destaque }: { rotulo: string; 
 }
 
 // ─── Hoje ───────────────────────────────────────────────────────────────────
-function Hoje({ itens, hoje, totalRitmo, modelos, indicadores, config, podeAgir, onAbrir, onAjustes }: {
+function Hoje({ itens, hoje, totalRitmo, modelos, indicadores, config, podeAgir, onAbrir, onAjustes, onAtualizar }: {
   itens: Prospect[]; hoje: string; totalRitmo: number; modelos: ModeloProspeccao[]; indicadores: ProspeccaoIndicadores; config: ConfigProspeccao;
+  onAtualizar: (id: string, patch: Partial<Prospect>) => void;
   podeAgir: boolean; onAbrir: (id: string, f?: "registrar" | null) => void; onAjustes: () => void;
 }) {
   const { perfil } = usePainel();
+  const enviar = useEnvio({ config, onAtualizar });
   const doDia = ordenarHoje(itens.filter((p) => paraHoje(p, hoje)), hoje);
   const atrasados = doDia.filter((p) => atrasado(p, hoje));
   const deHoje = doDia.filter((p) => !atrasado(p, hoje));
@@ -224,8 +227,14 @@ function Hoje({ itens, hoje, totalRitmo, modelos, indicadores, config, podeAgir,
           {atrasado(p, hoje) ? <Proximo p={p} hoje={hoje} /> : p.situacao === "respondeu" ? <span className="text-xs text-success">respondeu</span> : <Pontos feitos={p.toques} total={totalRitmo} />}
         </span>
         <span className="col-span-3 flex justify-end gap-1.5 md:col-span-1">
-          {link && <Button size="sm" asChild><a href={link.href} target="_blank" rel="noreferrer">{link.rotulo}</a></Button>}
-          {podeAgir && <Button size="sm" variant="primary" onClick={() => onAbrir(p.id, "registrar")}>Registrar</Button>}
+          {/* respondeu: conversa em andamento, nada de mensagem pronta; sem canal de envio: abre a ficha */}
+          {podeAgir && msg && p.situacao !== "respondeu" && podeEnviar(p, p.canal) ? (<>
+            <Button size="sm" onClick={() => onAbrir(p.id)} title="Ver e editar a mensagem antes">Ver mensagem</Button>
+            <Button size="sm" variant="primary" onClick={() => enviar(p, p.canal, msg)}><Send /> {rotuloEnviar(p.canal)}</Button>
+          </>) : (<>
+            {link && <Button size="sm" asChild><a href={link.href} target="_blank" rel="noreferrer">{link.rotulo}</a></Button>}
+            {podeAgir && <Button size="sm" variant="primary" onClick={() => onAbrir(p.id, "registrar")}>Registrar</Button>}
+          </>)}
         </span>
       </li>
     );
