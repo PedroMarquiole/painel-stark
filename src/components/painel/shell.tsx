@@ -14,6 +14,8 @@ import { PAPEIS } from "@/lib/rotulos";
 import type { Notificacao, Perfil } from "@/lib/dados/tipos";
 import { sair } from "@/app/(auth)/acoes";
 import { Atalhos } from "./atalhos";
+import { AvisoEnvios } from "./aviso-envios";
+import type { FalhaEnvio } from "@/lib/dados/consultas";
 import { Busca } from "./busca";
 import { PainelCtx } from "./contexto";
 import { Notificacoes } from "./notificacoes";
@@ -31,9 +33,9 @@ const NAV = [
 ];
 
 export function Shell({
-  perfil, equipe, notificacoes, abertos, offline, children,
+  perfil, equipe, notificacoes, abertos, offline, falhas = [], children,
 }: {
-  perfil: Perfil; equipe: Perfil[]; notificacoes: Notificacao[]; abertos: number; offline: boolean; children: React.ReactNode;
+  perfil: Perfil; equipe: Perfil[]; notificacoes: Notificacao[]; abertos: number; offline: boolean; falhas?: FalhaEnvio[]; children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -224,7 +226,10 @@ export function Shell({
               <Plus /> <span className="hidden sm:inline">Novo lead</span> <Kbd className="ml-0.5 hidden border-accent-fg/20 bg-transparent text-accent-fg/80 sm:inline-flex">N</Kbd>
             </Button>
           </header>
-          <main className="flex-1 pb-16 lg:pb-0">{children}</main>
+          <main className="flex-1 pb-16 lg:pb-0">
+            <AvisoEnvios falhas={falhas} />
+            {children}
+          </main>
         </div>
 
         {/* Navegação de baixo (celular) */}

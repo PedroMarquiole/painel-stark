@@ -38,7 +38,7 @@ export function preencher(texto: string, p: Pick<Prospect, "pessoa" | "empresa">
 export function mensagemSugerida(p: Prospect, modelos: ModeloProspeccao[], seuNome: string) {
   const n = numeroDoContato(p);
   const m = modelos.find((x) => x.canal === p.canal && x.toque === n) ?? modelos.find((x) => x.canal === p.canal);
-  return m ? { n, texto: preencher(m.texto, p, seuNome) } : null;
+  return m ? { n, texto: preencher(m.texto, p, seuNome), assunto: preencher(m.assunto || "Stark · {{empresa}}", p, seuNome) } : null;
 }
 
 // ─── Links para abrir o canal (nada é enviado pelo painel) ───────────────────

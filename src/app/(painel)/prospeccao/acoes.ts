@@ -114,10 +114,25 @@ export async function importarPlanilha(linhas: LinhaImportar[], lista: string, o
   }) as never, simular ? [] : TELAS);
 }
 
-export async function salvarModelo(canal: CanalProspect, toque: 1 | 2 | 3, texto: string) {
+export async function salvarModelo(canal: CanalProspect, toque: 1 | 2 | 3, texto: string, assunto?: string | null) {
   if (!ehCanal(canal) || ![1, 2, 3].includes(toque)) return { ok: false as const, erro: "Modelo inválido." };
   if (!texto.trim()) return { ok: false as const, erro: "Escreva a mensagem." };
-  return executar((sb) => sb.from("prospeccao_modelos").upsert({ canal, toque, texto: texto.slice(0, 2000), updated_at: new Date().toISOString() }).select("canal"), TELAS, true);
+  return executar((sb) => sb.from("prospeccao_modelos").upsert({
+    canal, toque, texto: texto.slice(0, 2000), updated_at: new Date().toISOString(),
+    ...(canal === "email" ? { assunto: assunto?.trim().slice(0, 150) || null } : {}),
+  } as never).select("canal"), TELAS, true);
+}
+
+/** E-mail com 1 clique: entra na fila de envio (Resend) e o contato fica registrado. */
+export async function enviarEmail(id: string, assunto: string, corpo: string) {
+  if (!assunto.trim() || !corpo.trim()) return { ok: false as const, erro: "Escreva o assunto e a mensagem." };
+  return executar<{ situacao: SituacaoProspect; proximo_contato: string | null; toques: number; mensagem_id: string }>(
+    (sb) => sb.rpc("enviar_email_prospect" as never, { p_prospect: id, p_assunto: assunto, p_corpo: corpo } as never) as never, TELAS);
+}
+
+/** Desfazer logo depois: cancela o e-mail se ainda não saiu. */
+export async function cancelarEnvio(mensagemId: string) {
+  return executar<boolean>((sb) => sb.rpc("cancelar_envio_prospect" as never, { p_mensagem: mensagemId } as never) as never);
 }
 
 /** Ritmo (dias úteis entre os contatos) e meta semanal: só admin (configuração do painel). */

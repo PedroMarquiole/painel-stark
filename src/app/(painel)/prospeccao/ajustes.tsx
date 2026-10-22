@@ -22,21 +22,25 @@ export function Ajustes({ aberto, setAberto, modelos, config, onModelo, onConfig
   const admin = perfil.papel === "admin";
   const [canal, setCanal] = React.useState<CanalProspect>("linkedin");
   const [toque, setToque] = React.useState<1 | 2 | 3>(1);
-  const atual = modelos.find((m) => m.canal === canal && m.toque === toque)?.texto ?? "";
+  const modelo = modelos.find((m) => m.canal === canal && m.toque === toque);
+  const atual = modelo?.texto ?? "";
+  const assuntoAtual = modelo?.assunto ?? "";
   const [texto, setTexto] = React.useState(atual);
+  const [assunto, setAssunto] = React.useState(assuntoAtual);
   const [ritmo, setRitmo] = React.useState(config.ritmo.join(", "));
   const [meta, setMeta] = React.useState(config.meta_semana ? String(config.meta_semana) : "");
   const [salvando, setSalvando] = React.useState(false);
   React.useEffect(() => setTexto(atual), [atual, aberto]);
+  React.useEffect(() => setAssunto(assuntoAtual), [assuntoAtual, aberto]);
   React.useEffect(() => { if (aberto) { setRitmo(config.ritmo.join(", ")); setMeta(config.meta_semana ? String(config.meta_semana) : ""); } }, [aberto, config]);
 
   async function gravarModelo() {
     if (salvando) return;
     setSalvando(true);
-    const r = await chamar(salvarModelo(canal, toque, texto));
+    const r = await chamar(salvarModelo(canal, toque, texto, assunto));
     setSalvando(false);
     if (!r.ok) return void toast.error(r.erro);
-    onModelo({ canal, toque, texto });
+    onModelo({ canal, toque, texto, assunto: canal === "email" ? assunto.trim() || null : null });
     toast.success(`Modelo do ${toque}º contato por ${CANAIS_PROSPECT[canal]} salvo`);
   }
 
@@ -75,11 +79,14 @@ export function Ajustes({ aberto, setAberto, modelos, config, onModelo, onConfig
               </button>
             ))}
           </div>
+          {canal === "email" && (
+            <Input aria-label="Assunto do e-mail" value={assunto} onChange={(e) => setAssunto(e.target.value)} disabled={perfil.papel === "projetos"} placeholder="Assunto, ex.: {{empresa}}: uma pergunta rápida" />
+          )}
           <Textarea aria-label="Texto do modelo" className="min-h-36" value={texto} onChange={(e) => setTexto(e.target.value)} disabled={perfil.papel === "projetos"}
             placeholder="Oi, {{pessoa}}! Aqui é {{seu_nome}}, da Stark…" />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-fg-subtle">Use {"{{pessoa}}"}, {"{{empresa}}"} e {"{{seu_nome}}"}: o painel troca pelo primeiro nome de cada um.</p>
-            {perfil.papel !== "projetos" && <Button variant="primary" size="sm" onClick={gravarModelo} disabled={salvando || texto === atual}>Salvar modelo</Button>}
+            {perfil.papel !== "projetos" && <Button variant="primary" size="sm" onClick={gravarModelo} disabled={salvando || (texto === atual && assunto === assuntoAtual)}>Salvar modelo</Button>}
           </div>
         </section>
 

@@ -213,5 +213,5 @@ export interface ProspeccaoIndicadores {
   valor_no_funil: number;
 }
 
-export interface ModeloProspeccao { canal: CanalProspect; toque: 1 | 2 | 3; texto: string }
+export interface ModeloProspeccao { canal: CanalProspect; toque: 1 | 2 | 3; texto: string; assunto?: string | null }
 export interface ConfigProspeccao { ritmo: number[]; meta_semana: number | null }
