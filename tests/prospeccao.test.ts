@@ -115,3 +115,21 @@ describe("buscar empresas", () => {
     expect(r.itens).toEqual([expect.objectContaining({ empresa: "Pão Quente", telefone: "+55 19 3333-4444", endereco: "Rua A, 10", categoria: "bakery" })]);
   });
 });
+
+describe("mensagem pelo ramo da empresa", () => {
+  it("usa a dor e o ganho do ramo e a cidade", async () => {
+    const { preencher } = await import("@/lib/prospeccao");
+    const t = "{{nicho}}{{na_cidade}}: {{dor}} → {{ganho}}";
+    expect(preencher(t, { pessoa: "Ana", empresa: "Clínica Sorriso", segmento: null, cidade: "Campinas" }, "Pedro")).toMatch(/^clínicas em Campinas: agenda espalhada/);
+    expect(preencher(t, { pessoa: "Ana", empresa: "Grupo Alfa", segmento: "Construção civil", cidade: null }, "Pedro")).toMatch(/^construtoras: obra, compras/);
+    expect(preencher(t, { pessoa: "Ana", empresa: "Grupo Alfa", segmento: null, cidade: null }, "Pedro")).toMatch(/^empresas do seu porte: informação espalhada/);
+  });
+  it("nenhuma variável fica sem preencher nos modelos novos", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { preencher } = await import("@/lib/prospeccao");
+    const sql = readFileSync("supabase/migrations/20261022000018_mensagens_por_ramo.sql", "utf8");
+    for (const [, texto] of sql.matchAll(/E'((?:[^'\\]|\\.)*)'\)/g)) {
+      expect(preencher(texto, { pessoa: null, empresa: "X", segmento: "padaria", cidade: "Jundiaí" }, "Pedro")).not.toMatch(/\{\{/);
+    }
+  });
+});
