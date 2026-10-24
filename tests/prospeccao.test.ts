@@ -93,6 +93,29 @@ describe("simulação do próximo passo (igual ao banco)", () => {
   });
 });
 
+describe("buscar empresas", () => {
+  it("converte o Google Maps e ignora fechadas", async () => {
+    const { deGoogle, ehCelular } = await import("@/lib/busca-empresas");
+    const r = deGoogle({ nextPageToken: "t2", places: [
+      { id: "a", displayName: { text: "Clínica Sorriso" }, nationalPhoneNumber: "(19) 98123-4455", websiteUri: "https://sorriso.com.br", rating: 4.7, userRatingCount: 120, formattedAddress: "Rua X, Campinas" },
+      { id: "b", displayName: { text: "Fechada" }, businessStatus: "CLOSED_PERMANENTLY" },
+    ] });
+    expect(r.proxima).toBe("t2");
+    expect(r.itens).toEqual([expect.objectContaining({ empresa: "Clínica Sorriso", telefone: "(19) 98123-4455", nota: 4.7, avaliacoes: 120 })]);
+    expect(ehCelular("(19) 98123-4455")).toBe(true);
+    expect(ehCelular("(19) 3245-1200")).toBe(false);
+    expect(ehCelular("+55 19 98123-4455")).toBe(true);
+  });
+  it("monta a consulta do OpenStreetMap pelo nicho e converte o resultado", async () => {
+    const { consultaOverpass, deOsm } = await import("@/lib/busca-empresas");
+    expect(consultaOverpass("padaria", "Campinas", "SP")).toContain('nwr["shop"="bakery"]["name"](area.c)');
+    expect(consultaOverpass("padaria", "Campinas", "SP")).toContain('"ISO3166-2"="BR-SP"');
+    expect(consultaOverpass("software house", "Campinas", "SP")).toContain('"name"~"software house",i');
+    const r = deOsm({ elements: [{ type: "node", id: 1, lat: 1, lon: 2, tags: { name: "Pão Quente", phone: "+55 19 3333-4444", "addr:street": "Rua A", "addr:housenumber": "10", shop: "bakery" } }, { type: "node", id: 2, tags: {} }] });
+    expect(r.itens).toEqual([expect.objectContaining({ empresa: "Pão Quente", telefone: "+55 19 3333-4444", endereco: "Rua A, 10", categoria: "bakery" })]);
+  });
+});
+
 describe("mensagem pelo ramo da empresa", () => {
   it("usa a dor e o ganho do ramo e a cidade", async () => {
     const { preencher } = await import("@/lib/prospeccao");

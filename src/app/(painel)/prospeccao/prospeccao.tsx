@@ -5,7 +5,7 @@ import {
   DndContext, DragOverlay, KeyboardCode, closestCenter, pointerWithin, KeyboardSensor, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors,
   type CollisionDetection, type DragEndEvent,
 } from "@dnd-kit/core";
-import { ArrowDown, ArrowUp, ChevronsRight, Crosshair, Plus, Search, Send, Settings2, Upload, UserPlus } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsRight, Crosshair, MapPin, Plus, Search, Send, Settings2, Upload, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import { FichaProspect } from "./ficha";
 import { podeEnviar, rotuloEnviar, useEnvio } from "./envio";
 import { NovoProspect } from "./novo";
 import { Importar } from "./importar";
+import { BuscarEmpresas } from "./buscar";
 import { Ajustes } from "./ajustes";
 
 type Ver = "hoje" | "pipeline" | "lista";
@@ -55,6 +56,7 @@ export function Prospeccao({ iniciais, indicadores, modelos: modelosIniciais, co
   const [foco, setFoco] = React.useState<"registrar" | null>(null);
   const [novo, setNovo] = React.useState(false);
   const [importar, setImportar] = React.useState(false);
+  const [buscar, setBuscar] = React.useState(false);
   const [ajustes, setAjustes] = React.useState(false);
   const podeAgir = perfil.papel !== "projetos";
 
@@ -110,8 +112,9 @@ export function Prospeccao({ iniciais, indicadores, modelos: modelosIniciais, co
           <p className="mt-1 text-sm text-fg-muted">Empresas que vocês vão atrás. {resumo}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {podeAgir && <Button variant="primary" onClick={() => setBuscar(true)}><MapPin /> Buscar empresas</Button>}
           {podeAgir && <Button onClick={() => setImportar(true)}><Upload /> Importar planilha</Button>}
-          {podeAgir && <Button variant="primary" onClick={() => setNovo(true)}><UserPlus /> Novo prospect</Button>}
+          {podeAgir && <Button onClick={() => setNovo(true)}><UserPlus /> Novo prospect</Button>}
           <Button variant="ghost" size="icon" aria-label="Mensagens e ritmo" title="Mensagens e ritmo" onClick={() => setAjustes(true)}><Settings2 /></Button>
           <Segmented label="Ver como" value={ver} onChange={mudarVer}
             options={[{ value: "hoje", label: "Hoje" }, { value: "pipeline", label: "Pipeline" }, { value: "lista", label: "Lista" }]} />
@@ -155,7 +158,7 @@ export function Prospeccao({ iniciais, indicadores, modelos: modelosIniciais, co
         <Bloco>
           <EmptyState icon={<Crosshair />} title="Nenhum prospect ainda"
             description="Comece importando uma planilha de empresas ou cadastrando a primeira à mão."
-            action={podeAgir ? <div className="flex gap-2"><Button onClick={() => setImportar(true)}><Upload /> Importar planilha</Button><Button variant="primary" onClick={() => setNovo(true)}><Plus /> Novo prospect</Button></div> : undefined} />
+            action={podeAgir ? <div className="flex flex-wrap gap-2"><Button variant="primary" onClick={() => setBuscar(true)}><MapPin /> Buscar empresas</Button><Button onClick={() => setImportar(true)}><Upload /> Importar planilha</Button><Button onClick={() => setNovo(true)}><Plus /> Novo prospect</Button></div> : undefined} />
         </Bloco>
       ) : ver === "hoje" ? (
         <Hoje itens={visiveis} hoje={hoje} totalRitmo={totalRitmo} modelos={modelos} indicadores={indicadores} config={config} onAtualizar={atualizar}
@@ -177,6 +180,7 @@ export function Prospeccao({ iniciais, indicadores, modelos: modelosIniciais, co
       />
       <NovoProspect aberto={novo} setAberto={setNovo} onCriado={(p) => { setProspects((xs) => [...xs, p]); abrir(p.id, "registrar"); }} />
       <Importar aberto={importar} setAberto={setImportar} onImportado={() => router.refresh()} />
+      <BuscarEmpresas aberto={buscar} setAberto={setBuscar} onImportado={() => router.refresh()} />
       <Ajustes aberto={ajustes} setAberto={setAjustes} modelos={modelos} config={config}
         onModelo={(m) => setModelos((xs) => [...xs.filter((x) => !(x.canal === m.canal && x.toque === m.toque)), m])} onConfig={setConfig} />
     </div>

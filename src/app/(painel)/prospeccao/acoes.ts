@@ -5,6 +5,8 @@ import * as q from "@/lib/dados/consultas";
 import { CANAIS_PROSPECT, SERVICOS, type CanalProspect, type Servico, type SituacaoProspect } from "@/lib/rotulos";
 import type { Prospect, ToqueProspect } from "@/lib/dados/tipos";
 import type { CampoPlanilha } from "@/lib/prospeccao";
+import { OFFLINE } from "@/lib/env";
+import { UFS, buscarEmpresasFonte, ehCelular, temGoogle, type EmpresaEncontrada } from "@/lib/busca-empresas";
 
 const TELAS = ["/prospeccao"];
 const ehCanal = (c: unknown): c is CanalProspect => typeof c === "string" && c in CANAIS_PROSPECT;
@@ -145,4 +147,70 @@ export async function salvarConfig(ritmo: number[], meta: number | null) {
     // sem meta = 0 (a coluna não aceita vazio)
     return sb.from("app_config").update({ valor: (meta && meta > 0 ? Math.round(meta) : 0) as never }).eq("chave", "prospeccao_meta_semana").select("chave");
   }, TELAS, true);
+}
+
+// ─── Buscar empresas (Google Maps / OpenStreetMap) ───────────────────────────
+export type StatusEncontrada = ResultadoImportacao["linhas"][number]["status"];
+export interface ResultadoEncontradas {
+  fonte: "google" | "osm"; temGoogle: boolean; proxima: string | null;
+  itens: (EmpresaEncontrada & { status: StatusEncontrada; celular: boolean })[];
+}
+
+/** Empresa encontrada → linha da importação (mesmas regras de repetido / cliente / não abordar). */
+const paraLinha = (e: EmpresaEncontrada, nicho: string, cidade: string): LinhaImportar => ({
+  empresa: e.empresa,
+  whatsapp: e.telefone ?? undefined,
+  site: e.site ?? undefined,
+  cidade,
+  segmento: nicho,
+  porque: [e.categoria, e.nota ? `nota ${e.nota.toFixed(1)} (${e.avaliacoes ?? 0} avaliações)` : null, e.endereco].filter(Boolean).join(" · ") || undefined,
+});
+
+export async function buscarEmpresas(nicho: string, cidade: string, uf: string, pagina?: string | null, fonte?: "google" | "osm"):
+  Promise<{ ok: true; dados: ResultadoEncontradas } | { ok: false; erro: string }> {
+  const p = await q.perfilAtual();
+  if (!p || p.papel === "projetos") return { ok: false, erro: SEM_PERMISSAO };
+  const n = limpar(nicho, 60), c = limpar(cidade, 80);
+  if (!n || !c || !UFS.includes(uf as (typeof UFS)[number])) return { ok: false, erro: "Informe o nicho, a cidade e o estado." };
+  let res: Awaited<ReturnType<typeof buscarEmpresasFonte>>;
+  try {
+    res = OFFLINE ? exemploBusca(n, c) : await buscarEmpresasFonte(n, c, uf, pagina, fonte);
+  } catch (e) {
+    const m = (e as Error).message;
+    return { ok: false, erro: m === "google_chave" ? "A chave do Google Maps foi recusada. Confira GOOGLE_MAPS_API_KEY na Vercel e se a Places API (New) está ativada."
+      : m === "google_cota" ? "A cota diária do Google Maps acabou. Tente amanhã ou use o OpenStreetMap."
+      : m === "osm_ocupado" ? "O OpenStreetMap está ocupado agora. Tente de novo em 1 minuto."
+      : "Não consegui buscar agora. Tente de novo." };
+  }
+  // Confere cada uma contra a prospecção e os contatos (nada é gravado)
+  const linhas = res.itens.map((e) => paraLinha(e, n, c));
+  const conf = linhas.length ? await importarPlanilha(linhas, "", "Busca", [p.id], 10, true) : null;
+  const st = new Map((conf?.ok ? conf.dados?.linhas : undefined)?.map((l) => [l.linha, l.status]) ?? []);
+  return {
+    ok: true,
+    dados: {
+      fonte: res.fonte, temGoogle: temGoogle(), proxima: res.proxima,
+      itens: res.itens.map((e, i) => ({ ...e, celular: ehCelular(e.telefone), status: st.get(i + 1) ?? (e.telefone || e.site ? "novo" : "sem_contato") })),
+    },
+  };
+}
+
+/** Importa as escolhidas, com a origem da busca registrada (LGPD). */
+export async function importarEncontradas(itens: EmpresaEncontrada[], nicho: string, cidade: string, uf: string, responsaveis: string[], porDia: number) {
+  const fonte = itens[0]?.fonte === "google" ? "Google Maps" : "OpenStreetMap";
+  const rotulo = `${nicho} em ${cidade}/${uf}`;
+  return importarPlanilha(itens.map((e) => paraLinha(e, nicho, cidade)), rotulo, `${fonte}: ${rotulo}`, responsaveis, porDia, false);
+}
+
+function exemploBusca(nicho: string, cidade: string): Awaited<ReturnType<typeof buscarEmpresasFonte>> {
+  const nomes = ["Central", "do Bairro", "Bem-Estar", "Premium", "Express", "da Vila", "Nova Era", "Prime"];
+  return {
+    fonte: "osm", proxima: null,
+    itens: nomes.map((s, i) => ({
+      fonte: "osm" as const, id: `exemplo/${i}`, empresa: `${nicho[0].toUpperCase()}${nicho.slice(1)} ${s}`,
+      telefone: i % 3 === 2 ? null : i % 2 ? `(19) 3${i}45-12${i}0` : `(19) 9${i}812-34${i}5`, site: i % 2 ? null : `exemplo${i}.com.br`,
+      endereco: `Rua ${i + 1}, Centro · ${cidade}`, nota: i % 2 ? null : 4 + i / 10, avaliacoes: i % 2 ? null : 20 + i * 7,
+      mapa: null, categoria: nicho,
+    })),
+  };
 }
