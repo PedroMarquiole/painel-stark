@@ -153,3 +153,21 @@ describe("busca grátis: Photon", () => {
     expect(r.itens).toEqual([expect.objectContaining({ id: "node/5", empresa: "Padaria X", endereco: "Rua A, 1 · Centro · Campinas", _cidade: "Campinas" })]);
   });
 });
+
+describe("base da Receita (CNPJ)", () => {
+  it("nicho vira CNAE (o mais específico primeiro)", async () => {
+    const { cnaesDoNicho } = await import("@/lib/busca-empresas");
+    expect(cnaesDoNicho("clínica odontológica")).toEqual(["8630504"]);
+    expect(cnaesDoNicho("Dentista")).toEqual(["8630504"]);
+    expect(cnaesDoNicho("clínica de estética")).toEqual(["9602"]);
+    expect(cnaesDoNicho("padaria")).toEqual(["1091102", "4721102"]);
+    expect(cnaesDoNicho("software house")).toEqual([]);
+  });
+  it("prefere o celular e formata o CNPJ", async () => {
+    const { deReceita } = await import("@/lib/busca-empresas");
+    const [e] = deReceita([{ cnpj: "11111111000110", nome: "Clínica Sorriso", razao: null, cnae: "8630504", municipio: "Belo Horizonte", bairro: "Centro",
+      endereco: "Rua A, 1", telefone: "(31) 3222-1111", telefone2: "(31) 98765-4321", email: "a@b.com", abertura: "2015-03-10", porte: 3 }]);
+    expect(e).toMatchObject({ fonte: "receita", telefone: "(31) 98765-4321", email: "a@b.com", endereco: "Rua A, 1 · Centro" });
+    expect(e.categoria).toBe("desde 2015 · pequena empresa · CNPJ 11.111.111/0001-10");
+  });
+});
