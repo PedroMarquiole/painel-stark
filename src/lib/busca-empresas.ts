@@ -93,10 +93,17 @@ const TAGS: [RegExp, string[]][] = [
 
 const escaparRe = (s: string) => s.replace(/[\\".*+?^${}()|[\]]/g, "\\$&");
 
-export function consultaOverpass(nicho: string, cidade: string, uf: string, limite = 60) {
+/** "sao paulo" casa com "São Paulo": ignora maiúsculas e acentos no nome da cidade. */
+export function nomeFlexivel(nome: string) {
+  const grupos: Record<string, string> = { a: "aáàâãä", e: "eéèêë", i: "iíìîï", o: "oóòôõö", u: "uúùûü", c: "cç", n: "nñ" };
+  const base = nome.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ");
+  return "^" + [...base].map((ch) => (grupos[ch] ? `[${grupos[ch]}${grupos[ch].toUpperCase()}]` : ch === " " ? "\\s+" : escaparRe(ch))).join("") + "$";
+}
+
+export function consultaOverpass(nicho: string, cidade: string, uf: string, limite = 80) {
   const filtros = TAGS.find(([re]) => re.test(nicho))?.[1] ?? [`"name"~"${escaparRe(nicho)}",i`];
   const sel = filtros.map((f) => `nwr[${f}]["name"](area.c);`).join("");
-  return `[out:json][timeout:25];area["ISO3166-2"="BR-${uf}"]->.uf;area["name"="${escaparRe(cidade)}"]["admin_level"="8"](area.uf)->.c;(${sel});out center tags ${limite};`;
+  return `[out:json][timeout:20];area["ISO3166-2"="BR-${uf}"]->.uf;area["name"~"${nomeFlexivel(cidade)}",i]["admin_level"="8"](area.uf)->.c;(${sel});out center tags ${limite};`;
 }
 
 type ElementoOsm = { type: string; id: number; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> };
@@ -107,7 +114,7 @@ export function deOsm(json: { elements?: ElementoOsm[] }): ResultadoBusca {
     const rua = [t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(", ");
     return {
       fonte: "osm" as const, id: `${e.type}/${e.id}`, empresa: t.name,
-      telefone: t.phone ?? t["contact:phone"] ?? t["contact:whatsapp"] ?? t.mobile ?? null,
+      telefone: t.phone ?? t["contact:phone"] ?? t["contact:whatsapp"] ?? t.mobile ?? t["contact:mobile"] ?? null,
       site: t.website ?? t["contact:website"] ?? null,
       endereco: [rua, t["addr:suburb"], t["addr:city"]].filter(Boolean).join(" · ") || null,
       nota: null, avaliacoes: null,
@@ -118,15 +125,49 @@ export function deOsm(json: { elements?: ElementoOsm[] }): ResultadoBusca {
   return { fonte: "osm", itens, proxima: null };
 }
 
-async function buscarOsm(nicho: string, cidade: string, uf: string): Promise<ResultadoBusca> {
-  const r = await fetch("https://overpass-api.de/api/interpreter", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "PainelStark/1.0" },
-    body: "data=" + encodeURIComponent(consultaOverpass(nicho, cidade, uf)),
-    cache: "no-store",
+type LugarNominatim = { osm_type: string; osm_id: number; name?: string; display_name?: string; type?: string; extratags?: Record<string, string> | null };
+export function deNominatim(lista: LugarNominatim[]): ResultadoBusca {
+  const itens = lista.filter((l) => l.name).map((l) => {
+    const t = l.extratags ?? {};
+    return {
+      fonte: "osm" as const, id: `${l.osm_type}/${l.osm_id}`, empresa: l.name!,
+      telefone: t.phone ?? t["contact:phone"] ?? t["contact:whatsapp"] ?? t.mobile ?? null,
+      site: t.website ?? t["contact:website"] ?? null,
+      endereco: l.display_name?.split(",").slice(1, 4).join(",").trim() || null,
+      nota: null, avaliacoes: null, mapa: `https://www.openstreetmap.org/${l.osm_type}/${l.osm_id}`, categoria: l.type ?? null,
+    };
   });
-  if (!r.ok) throw new Error(r.status === 429 ? "osm_ocupado" : `osm_${r.status}`);
-  return deOsm(await r.json());
+  return { fonte: "osm", itens, proxima: null };
+}
+
+const UA = { "User-Agent": "PainelStark/1.0 (prospeccao)", "Accept-Language": "pt-BR" };
+async function comTempo(url: string, init: RequestInit, ms: number) {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, { ...init, signal: c.signal, cache: "no-store" }); } finally { clearTimeout(t); }
+}
+const SERVIDORES_OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"];
+
+/** Overpass (3 servidores, um depois do outro) e, se vier vazio, a busca por texto do Nominatim. */
+async function buscarOsm(nicho: string, cidade: string, uf: string): Promise<ResultadoBusca> {
+  const corpo = "data=" + encodeURIComponent(consultaOverpass(nicho, cidade, uf));
+  let falhas = 0;
+  for (const url of SERVIDORES_OVERPASS) {
+    try {
+      const r = await comTempo(url, { method: "POST", headers: { ...UA, "Content-Type": "application/x-www-form-urlencoded" }, body: corpo }, 16_000);
+      if (!r.ok) { falhas++; continue; }
+      const res = deOsm(await r.json());
+      if (res.itens.length) return res;
+      break; // respondeu, mas sem nada: tenta a busca por texto
+    } catch { falhas++; }
+  }
+  try {
+    const q = new URLSearchParams({ q: `${nicho} ${cidade} ${uf} Brasil`, format: "jsonv2", limit: "50", countrycodes: "br", extratags: "1" });
+    const r = await comTempo(`https://nominatim.openstreetmap.org/search?${q}`, { headers: UA }, 12_000);
+    if (r.ok) return deNominatim(await r.json());
+  } catch { /* cai no erro abaixo */ }
+  if (falhas >= SERVIDORES_OVERPASS.length) throw new Error("osm_ocupado");
+  return { fonte: "osm", itens: [], proxima: null };
 }
 
 export const temGoogle = () => Boolean(process.env.GOOGLE_MAPS_API_KEY);

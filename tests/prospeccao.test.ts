@@ -133,3 +133,15 @@ describe("mensagem pelo ramo da empresa", () => {
     }
   });
 });
+
+describe("busca: nome da cidade flexível e Nominatim", () => {
+  it("casa maiúsculas e acentos", async () => {
+    const { nomeFlexivel, deNominatim } = await import("@/lib/busca-empresas");
+    const re = new RegExp(nomeFlexivel("sao paulo"), "i");
+    expect(re.test("São Paulo")).toBe(true);
+    expect(re.test("São Paulo do Potengi")).toBe(false);
+    expect(new RegExp(nomeFlexivel("JUNDIAI"), "i").test("Jundiaí")).toBe(true);
+    expect(deNominatim([{ osm_type: "node", osm_id: 9, name: "Pão Bom", display_name: "Pão Bom, Rua A, Centro, Campinas, SP", type: "bakery", extratags: { phone: "+55 19 3333-0000" } }]).itens[0])
+      .toMatchObject({ empresa: "Pão Bom", telefone: "+55 19 3333-0000", endereco: "Rua A, Centro, Campinas" });
+  });
+});

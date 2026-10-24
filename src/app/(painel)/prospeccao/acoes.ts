@@ -177,10 +177,11 @@ export async function buscarEmpresas(nicho: string, cidade: string, uf: string, 
     res = OFFLINE ? exemploBusca(n, c) : await buscarEmpresasFonte(n, c, uf, pagina, fonte);
   } catch (e) {
     const m = (e as Error).message;
+    console.error("buscarEmpresas", { nicho: n, cidade: c, uf, erro: m });
     return { ok: false, erro: m === "google_chave" ? "A chave do Google Maps foi recusada. Confira GOOGLE_MAPS_API_KEY na Vercel e se a Places API (New) está ativada."
       : m === "google_cota" ? "A cota diária do Google Maps acabou. Tente amanhã ou use o OpenStreetMap."
       : m === "osm_ocupado" ? "O OpenStreetMap está ocupado agora. Tente de novo em 1 minuto."
-      : "Não consegui buscar agora. Tente de novo." };
+      : `Não consegui buscar agora (${m.slice(0, 60)}). Tente de novo em instantes.` };
   }
   // Confere cada uma contra a prospecção e os contatos (nada é gravado)
   const linhas = res.itens.map((e) => paraLinha(e, n, c));

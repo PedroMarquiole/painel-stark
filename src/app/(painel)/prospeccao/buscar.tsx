@@ -67,7 +67,7 @@ export function BuscarEmpresas({ aberto, setAberto, onImportado }: { aberto: boo
     const itens = mais && res ? [...res.itens, ...d.itens.filter((i) => !vistos.has(i.id))] : d.itens;
     setRes({ ...d, itens });
     setMarcados((m) => new Set([...(mais ? m : []), ...d.itens.filter(pode).filter(passa).map((i) => i.id)]));
-    if (!d.itens.length) toast.info("Nada encontrado. Tente outro termo para o nicho (ex.: “dentista” em vez de “clínica odontológica”).");
+    if (!d.itens.length) toast.info(d.temGoogle ? "Nada encontrado. Tente outro termo para o nicho (ex.: “dentista” em vez de “clínica odontológica”)." : "O OpenStreetMap não tem empresas desse nicho nessa cidade. Tente um termo mais simples (ex.: “dentista”, “padaria”) ou ative o Google Maps, que acha quase todas.", { duration: 9000 });
   }
 
   const passa = (i: Item) => (!soTelefone || Boolean(i.telefone)) && (!soCelular || i.celular) && (!notaMin || (i.nota ?? 0) >= notaMin);
