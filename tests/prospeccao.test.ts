@@ -145,3 +145,11 @@ describe("busca: nome da cidade flexível e Nominatim", () => {
       .toMatchObject({ empresa: "Pão Bom", telefone: "+55 19 3333-0000", endereco: "Rua A, Centro, Campinas" });
   });
 });
+
+describe("busca grátis: Photon", () => {
+  it("converte e guarda a cidade para filtrar", async () => {
+    const { dePhoton } = await import("@/lib/busca-empresas");
+    const r = dePhoton({ features: [{ properties: { osm_type: "N", osm_id: 5, name: "Padaria X", street: "Rua A", housenumber: "1", district: "Centro", city: "Campinas", osm_value: "bakery" } }, { properties: { osm_type: "W", osm_id: 6 } }] });
+    expect(r.itens).toEqual([expect.objectContaining({ id: "node/5", empresa: "Padaria X", endereco: "Rua A, 1 · Centro · Campinas", _cidade: "Campinas" })]);
+  });
+});

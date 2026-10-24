@@ -149,25 +149,63 @@ async function comTempo(url: string, init: RequestInit, ms: number) {
 const SERVIDORES_OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"];
 
 /** Overpass (3 servidores, um depois do outro) e, se vier vazio, a busca por texto do Nominatim. */
+type FotonFeature = { properties: { osm_type: string; osm_id: number; osm_key?: string; osm_value?: string; name?: string; street?: string; housenumber?: string; district?: string; locality?: string; city?: string; state?: string } };
+export function dePhoton(json: { features?: FotonFeature[] }): { fonte: "osm"; itens: (EmpresaEncontrada & { _cidade: string | null })[]; proxima: null } {
+  const tipo: Record<string, string> = { N: "node", W: "way", R: "relation" };
+  const itens = (json.features ?? []).filter((f) => f.properties.name).map((f) => {
+    const p = f.properties;
+    const t = tipo[p.osm_type] ?? "node";
+    return {
+      fonte: "osm" as const, id: `${t}/${p.osm_id}`, empresa: p.name!, telefone: null, site: null,
+      endereco: [[p.street, p.housenumber].filter(Boolean).join(", "), p.district ?? p.locality, p.city].filter(Boolean).join(" · ") || null,
+      nota: null, avaliacoes: null, mapa: `https://www.openstreetmap.org/${t}/${p.osm_id}`, categoria: p.osm_value ?? null,
+      _cidade: p.city ?? null,
+    };
+  });
+  return { fonte: "osm", itens, proxima: null };
+}
+
+const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+/** Etiquetas do nicho no formato do Photon ("shop:bakery"). */
+const tagsPhoton = (nicho: string) => (TAGS.find(([re]) => re.test(nicho))?.[1] ?? [])
+  .map((f) => /"(\w+)"="([^"]+)"/.exec(f)).filter(Boolean).map((m) => `${m![1]}:${m![2]}`);
+
+async function json<T>(p: Promise<Response>): Promise<T | null> {
+  try { const r = await p; return r.ok ? ((await r.json()) as T) : null; } catch { return null; }
+}
+
+/**
+ * Fontes grátis do OpenStreetMap, todas ao mesmo tempo (em poucos segundos):
+ * Nominatim (traz telefone/site quando há), Photon e Overpass (este costuma demorar; entra só se responder a tempo).
+ */
 async function buscarOsm(nicho: string, cidade: string, uf: string): Promise<ResultadoBusca> {
-  const corpo = "data=" + encodeURIComponent(consultaOverpass(nicho, cidade, uf));
-  let falhas = 0;
-  for (const url of SERVIDORES_OVERPASS) {
-    try {
-      const r = await comTempo(url, { method: "POST", headers: { ...UA, "Content-Type": "application/x-www-form-urlencoded" }, body: corpo }, 16_000);
-      if (!r.ok) { falhas++; continue; }
-      const res = deOsm(await r.json());
-      if (res.itens.length) return res;
-      break; // respondeu, mas sem nada: tenta a busca por texto
-    } catch { falhas++; }
+  const q = `${nicho} ${cidade}`;
+  const nomin = new URLSearchParams({ q: `${q} ${uf} Brasil`, format: "jsonv2", limit: "50", countrycodes: "br", extratags: "1", addressdetails: "1" });
+  const photon = new URLSearchParams({ q, limit: "50", lang: "default" });
+  tagsPhoton(nicho).forEach((t) => photon.append("osm_tag", t));
+  const [a, b, c] = await Promise.all([
+    json<LugarNominatim[]>(comTempo(`https://nominatim.openstreetmap.org/search?${nomin}`, { headers: UA }, 15_000)),
+    json<{ features?: FotonFeature[] }>(comTempo(`https://photon.komoot.io/api/?${photon}`, { headers: UA }, 15_000)),
+    json<{ elements?: ElementoOsm[] }>(comTempo(SERVIDORES_OVERPASS[0], {
+      method: "POST", headers: { ...UA, "Content-Type": "application/x-www-form-urlencoded" }, body: "data=" + encodeURIComponent(consultaOverpass(nicho, cidade, uf)),
+    }, 18_000)),
+  ]);
+  if (!a && !b && !c) throw new Error("osm_ocupado");
+
+  // Junta sem repetir (mesmo lugar do OSM ou mesmo nome), preferindo quem tem telefone/site
+  const alvo = semAcento(cidade);
+  const fotons = (b ? dePhoton(b).itens : []).filter((i) => !i._cidade || semAcento(i._cidade) === alvo).map(({ _cidade, ...i }) => i);
+  const noms = (a ? deNominatim(a.filter((l) => !l.display_name || semAcento(l.display_name).includes(alvo))).itens : []);
+  const todos = [...(c ? deOsm(c).itens : []), ...noms, ...fotons];
+  const porId = new Map<string, EmpresaEncontrada>();
+  for (const i of todos) {
+    const chave = semAcento(i.empresa);
+    const ja = porId.get(i.id) ?? porId.get(chave);
+    const junto = ja ? { ...ja, telefone: ja.telefone ?? i.telefone, site: ja.site ?? i.site, endereco: ja.endereco ?? i.endereco } : i;
+    porId.set(i.id, junto); porId.set(chave, junto);
   }
-  try {
-    const q = new URLSearchParams({ q: `${nicho} ${cidade} ${uf} Brasil`, format: "jsonv2", limit: "50", countrycodes: "br", extratags: "1" });
-    const r = await comTempo(`https://nominatim.openstreetmap.org/search?${q}`, { headers: UA }, 12_000);
-    if (r.ok) return deNominatim(await r.json());
-  } catch { /* cai no erro abaixo */ }
-  if (falhas >= SERVIDORES_OVERPASS.length) throw new Error("osm_ocupado");
-  return { fonte: "osm", itens: [], proxima: null };
+  const itens = [...new Set(porId.values())].sort((x, y) => Number(Boolean(y.telefone)) - Number(Boolean(x.telefone)));
+  return { fonte: "osm", itens, proxima: null };
 }
 
 export const temGoogle = () => Boolean(process.env.GOOGLE_MAPS_API_KEY);
