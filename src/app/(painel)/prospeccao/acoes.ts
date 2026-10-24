@@ -6,7 +6,8 @@ import { CANAIS_PROSPECT, SERVICOS, type CanalProspect, type Servico, type Situa
 import type { Prospect, ToqueProspect } from "@/lib/dados/tipos";
 import type { CampoPlanilha } from "@/lib/prospeccao";
 import { OFFLINE } from "@/lib/env";
-import { UFS, buscarEmpresasFonte, ehCelular, temGoogle, type EmpresaEncontrada } from "@/lib/busca-empresas";
+import { UFS, buscarEmpresasFonte, cnaesDoNicho, deReceita, ehCelular, temGoogle, type EmpresaEncontrada, type FonteBusca, type ResultadoBusca } from "@/lib/busca-empresas";
+import { supabaseServidor } from "@/lib/supabase/server";
 
 const TELAS = ["/prospeccao"];
 const ehCanal = (c: unknown): c is CanalProspect => typeof c === "string" && c in CANAIS_PROSPECT;
@@ -152,29 +153,59 @@ export async function salvarConfig(ritmo: number[], meta: number | null) {
 // ─── Buscar empresas (Google Maps / OpenStreetMap) ───────────────────────────
 export type StatusEncontrada = ResultadoImportacao["linhas"][number]["status"];
 export interface ResultadoEncontradas {
-  fonte: "google" | "osm"; temGoogle: boolean; proxima: string | null;
+  fonte: FonteBusca; temGoogle: boolean; proxima: string | null; total: number | null; atualizado: string | null;
+  /** Estados com a base da Receita carregada (a busca usa a base nesses estados). */
+  ufsBase: string[];
   itens: (EmpresaEncontrada & { status: StatusEncontrada; celular: boolean })[];
 }
 
 /** Empresa encontrada → linha da importação (mesmas regras de repetido / cliente / não abordar). */
-const paraLinha = (e: EmpresaEncontrada, nicho: string, cidade: string): LinhaImportar => ({
-  empresa: e.empresa,
-  whatsapp: e.telefone ?? undefined,
-  site: e.site ?? undefined,
-  cidade,
-  segmento: nicho,
-  porque: [e.categoria, e.nota ? `nota ${e.nota.toFixed(1)} (${e.avaliacoes ?? 0} avaliações)` : null, e.endereco].filter(Boolean).join(" · ") || undefined,
-});
+const paraLinha = (e: EmpresaEncontrada, nicho: string, cidade: string): LinhaImportar => {
+  const cel = ehCelular(e.telefone);
+  // Fixo não é WhatsApp: só vira o contato principal quando não há e-mail; fica anotado em "por que abordar"
+  const fixo = e.telefone && !cel ? e.telefone : null;
+  return {
+    empresa: e.empresa,
+    whatsapp: cel || (fixo && !e.email) ? e.telefone ?? undefined : undefined,
+    email: e.email ?? undefined,
+    site: e.site ?? undefined,
+    cidade,
+    segmento: nicho,
+    porque: [e.categoria, fixo ? `Tel. fixo ${fixo}` : null, e.nota ? `nota ${e.nota.toFixed(1)} (${e.avaliacoes ?? 0} avaliações)` : null, e.endereco]
+      .filter(Boolean).join(" · ").slice(0, 600) || undefined,
+  };
+};
 
-export async function buscarEmpresas(nicho: string, cidade: string, uf: string, pagina?: string | null, fonte?: "google" | "osm"):
+/** Base do painel (Receita): só nos estados carregados e para nichos que viram CNAE. */
+async function buscarReceita(nicho: string, cidade: string, uf: string, pagina?: string | null): Promise<ResultadoBusca | null> {
+  const cnaes = cnaesDoNicho(nicho);
+  if (!cnaes.length) return null;
+  const sb = await supabaseServidor();
+  const pular = Number(pagina) || 0;
+  const { data, error } = await sb.rpc("buscar_empresas_cnpj" as never, { p_uf: uf, p_cidade: cidade, p_cnaes: cnaes, p_limite: 50, p_pular: pular } as never);
+  if (error) throw new Error(`base_${error.code ?? "erro"}`);
+  const d = data as unknown as { total: number; itens: Parameters<typeof deReceita>[0]; atualizado: string | null };
+  return { fonte: "receita", itens: deReceita(d.itens), total: d.total, atualizado: d.atualizado, proxima: d.total > pular + 50 ? String(pular + 50) : null };
+}
+
+async function ufsDaBase(): Promise<string[]> {
+  if (OFFLINE) return ["MG"];
+  const sb = await supabaseServidor();
+  const { data } = await sb.rpc("ufs_cnpj" as never);
+  return (data as unknown as string[] | null) ?? [];
+}
+
+export async function buscarEmpresas(nicho: string, cidade: string, uf: string, pagina?: string | null, fonte?: FonteBusca):
   Promise<{ ok: true; dados: ResultadoEncontradas } | { ok: false; erro: string }> {
   const p = await q.perfilAtual();
   if (!p || p.papel === "projetos") return { ok: false, erro: SEM_PERMISSAO };
   const n = limpar(nicho, 60), c = limpar(cidade, 80);
   if (!n || !c || !UFS.includes(uf as (typeof UFS)[number])) return { ok: false, erro: "Informe o nicho, a cidade e o estado." };
-  let res: Awaited<ReturnType<typeof buscarEmpresasFonte>>;
+  let res: ResultadoBusca;
+  const ufsBase = await ufsDaBase();
   try {
-    res = OFFLINE ? exemploBusca(n, c) : await buscarEmpresasFonte(n, c, uf, pagina, fonte);
+    const base = (!fonte || fonte === "receita") && ufsBase.includes(uf) ? (OFFLINE ? exemploReceita(n, c) : await buscarReceita(n, c, uf, pagina)) : null;
+    res = base ?? (OFFLINE ? exemploBusca(n, c) : await buscarEmpresasFonte(n, c, uf, pagina, fonte === "receita" ? undefined : fonte));
   } catch (e) {
     const m = (e as Error).message;
     console.error("buscarEmpresas", { nicho: n, cidade: c, uf, erro: m });
@@ -190,17 +221,29 @@ export async function buscarEmpresas(nicho: string, cidade: string, uf: string, 
   return {
     ok: true,
     dados: {
-      fonte: res.fonte, temGoogle: temGoogle(), proxima: res.proxima,
-      itens: res.itens.map((e, i) => ({ ...e, celular: ehCelular(e.telefone), status: st.get(i + 1) ?? (e.telefone || e.site ? "novo" : "sem_contato") })),
+      fonte: res.fonte, temGoogle: temGoogle(), proxima: res.proxima, total: res.total ?? null, atualizado: res.atualizado ?? null, ufsBase,
+      itens: res.itens.map((e, i) => ({ ...e, celular: ehCelular(e.telefone), status: st.get(i + 1) ?? (e.telefone || e.site || e.email ? "novo" : "sem_contato") })),
     },
   };
 }
 
 /** Importa as escolhidas, com a origem da busca registrada (LGPD). */
 export async function importarEncontradas(itens: EmpresaEncontrada[], nicho: string, cidade: string, uf: string, responsaveis: string[], porDia: number) {
-  const fonte = itens[0]?.fonte === "google" ? "Google Maps" : "OpenStreetMap";
+  const fonte = itens[0]?.fonte === "google" ? "Google Maps" : itens[0]?.fonte === "receita" ? "Receita Federal (dados abertos de CNPJ)" : "OpenStreetMap";
   const rotulo = `${nicho} em ${cidade}/${uf}`;
   return importarPlanilha(itens.map((e) => paraLinha(e, nicho, cidade)), rotulo, `${fonte}: ${rotulo}`, responsaveis, porDia, false);
+}
+
+function exemploReceita(nicho: string, cidade: string): ResultadoBusca {
+  const nomes = ["Sorriso", "Vida", "Central", "Bem Estar", "Prime", "Santa Luzia"];
+  return {
+    fonte: "receita", total: 132, atualizado: "2026-10-20", proxima: "50",
+    itens: deReceita(nomes.map((s, i) => ({
+      cnpj: `1234567800${String(i).padStart(2, "0")}10`.slice(0, 14), nome: `${nicho[0].toUpperCase()}${nicho.slice(1)} ${s}`, razao: null, cnae: "8630504",
+      municipio: cidade, bairro: "Centro", endereco: `Rua ${i + 1}, ${100 + i}`, telefone: i % 2 ? `(31) 3${i}22-1100` : `(31) 9${i}876-54${i}1`, telefone2: null,
+      email: i % 3 ? `contato${i}@exemplo.com.br` : null, abertura: `20${10 + i}-03-01`, porte: i % 2 ? 1 : 3,
+    }))),
+  };
 }
 
 function exemploBusca(nicho: string, cidade: string): Awaited<ReturnType<typeof buscarEmpresasFonte>> {

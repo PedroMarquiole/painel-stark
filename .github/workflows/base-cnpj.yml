@@ -1,0 +1,26 @@
+# Carrega/atualiza a base de empresas (dados abertos de CNPJ da Receita) usada na busca da Prospecção.
+# Precisa do segredo SUPABASE_DB_URL (Settings → Secrets and variables → Actions).
+name: Base de empresas (CNPJ)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ufs:
+        description: "Estados (ex.: MG ou MG,SP)"
+        default: "MG"
+  schedule:
+    - cron: "17 6 20 * *"   # dia 20 de cada mês (a Receita publica no começo do mês)
+
+jobs:
+  carregar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar psql
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Carregar
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          UFS: ${{ github.event.inputs.ufs || vars.CNPJ_UFS || 'MG' }}
+        run: python3 scripts/carregar-cnpj.py

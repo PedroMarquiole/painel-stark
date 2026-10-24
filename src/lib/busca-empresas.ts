@@ -1,11 +1,14 @@
 /**
  * Busca de empresas para prospectar: nicho + cidade + UF.
- * Google Maps (Places API New) quando há GOOGLE_MAPS_API_KEY; senão OpenStreetMap (Overpass, grátis).
+ * 1º a base do painel (dados abertos de CNPJ da Receita, carregada pelo robô do GitHub);
+ * Google Maps (Places API New) quando há GOOGLE_MAPS_API_KEY; senão OpenStreetMap (grátis).
  * Funções puras de conversão ficam exportadas para teste.
  */
 
+export type FonteBusca = "receita" | "google" | "osm";
 export interface EmpresaEncontrada {
-  fonte: "google" | "osm";
+  fonte: FonteBusca;
+  email?: string | null;
   id: string;
   empresa: string;
   telefone: string | null;
@@ -16,7 +19,52 @@ export interface EmpresaEncontrada {
   mapa: string | null;
   categoria: string | null;
 }
-export interface ResultadoBusca { fonte: "google" | "osm"; itens: EmpresaEncontrada[]; proxima: string | null }
+export interface ResultadoBusca { fonte: FonteBusca; itens: EmpresaEncontrada[]; proxima: string | null; total?: number; atualizado?: string | null }
+
+// ─── Base da Receita (CNPJ) ──────────────────────────────────────────────────
+/** Nicho em português → prefixos do CNAE principal. Ordem importa (o mais específico primeiro). */
+const CNAE_NICHO: [RegExp, string[]][] = [
+  [/odonto|dent/i, ["8630504"]],
+  [/est[eé]tica|beleza|sal[aã]o|cabelei|barbear|manicure/i, ["9602"]],
+  [/fisio/i, ["8650004"]], [/psic[oó]l/i, ["8650003"]], [/nutri/i, ["8650002"]], [/fono/i, ["8650006"]],
+  [/laborat|diagn[oó]st|exame|imagem/i, ["8640"]],
+  [/veterin|pet/i, ["7500100", "4789004"]],
+  [/cl[ií]nica|consult[oó]rio|m[eé]dic|sa[uú]de/i, ["8630501", "8630502", "8630503", "8630506", "8630507", "8630599", "8650"]],
+  [/farm[aá]cia|drogaria/i, ["4771"]],
+  [/[oó]tica/i, ["4774100"]],
+  [/padaria|confeit/i, ["1091102", "4721102"]],
+  [/restaurante|lanchonete|bar\b|pizzaria|hamburg|aliment|delivery/i, ["5611", "5620"]],
+  [/supermercado|mercado|mercearia|hortifruti/i, ["4711", "4712", "4724", "4729"]],
+  [/roupa|moda|vestu[aá]rio|boutique/i, ["4781"]], [/cal[cç]ado/i, ["4782"]],
+  [/m[oó]veis|decora/i, ["4754"]], [/material de constru/i, ["4744"]],
+  [/autope[cç]a/i, ["4530"]], [/oficina|mec[aâ]nic|funilaria/i, ["4520"]],
+  [/loja|varejo|com[eé]rcio/i, ["47"]],
+  [/contab/i, ["6920"]], [/advoc|jur[ií]dic/i, ["6911"]], [/imobili[aá]ri|corretor|im[oó]ve/i, ["682"]],
+  [/academia|fitness|crossfit|pilates|muscula/i, ["9313"]],
+  [/escola|col[eé]gio|educa|creche/i, ["8511", "8512", "8513", "8520"]], [/curso|idioma|treinamento/i, ["8593", "8599"]],
+  [/hotel|pousada|hospedagem/i, ["5510", "5590"]],
+  [/lavanderia/i, ["9601"]],
+];
+export const cnaesDoNicho = (nicho: string) => CNAE_NICHO.find(([re]) => re.test(nicho))?.[1] ?? [];
+export const NICHOS_RECEITA = ["dentista", "clínica médica", "estética", "fisioterapia", "psicologia", "laboratório", "veterinária / pet shop", "farmácia", "ótica",
+  "padaria", "restaurante", "supermercado", "loja de roupas", "calçados", "móveis", "material de construção", "autopeças", "oficina mecânica",
+  "contabilidade", "advocacia", "imobiliária", "academia", "escola", "cursos e idiomas", "hotel / pousada", "lavanderia"];
+
+type LinhaCnpj = { cnpj: string; nome: string; razao: string | null; cnae: string; municipio: string; bairro: string | null; endereco: string | null;
+  telefone: string | null; telefone2: string | null; email: string | null; abertura: string | null; porte: number | null };
+const PORTE: Record<number, string> = { 1: "microempresa", 3: "pequena empresa", 5: "média/grande" };
+export function deReceita(linhas: LinhaCnpj[]): EmpresaEncontrada[] {
+  return linhas.map((l) => {
+    const cel = [l.telefone, l.telefone2].find((t) => ehCelular(t)) ?? null;
+    return {
+      fonte: "receita" as const, id: l.cnpj, empresa: l.nome, email: l.email,
+      telefone: cel ?? l.telefone ?? l.telefone2, site: null,
+      endereco: [l.endereco, l.bairro].filter(Boolean).join(" · ") || null, nota: null, avaliacoes: null,
+      mapa: `https://www.google.com/maps/search/${encodeURIComponent(`${l.nome} ${l.endereco ?? ""} ${l.municipio}`)}`,
+      categoria: [l.abertura ? `desde ${l.abertura.slice(0, 4)}` : null, l.porte ? PORTE[l.porte] : null, `CNPJ ${l.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}`].filter(Boolean).join(" · "),
+    };
+  });
+}
 
 export const UFS = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"] as const;
 

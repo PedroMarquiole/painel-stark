@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { ExternalLink, Globe, MapPin, Phone, Search, Star } from "lucide-react";
+import { ExternalLink, Globe, Mail, MapPin, Phone, Search, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Input, Label } from "@/components/ui/input";
 import { usePainel } from "@/components/painel/contexto";
 import { chamar } from "@/lib/chamar";
 import { cn } from "@/lib/utils";
-import { UFS } from "@/lib/busca-empresas";
+import { NICHOS_RECEITA, UFS, type FonteBusca } from "@/lib/busca-empresas";
 import { buscarEmpresas, importarEncontradas, type ResultadoEncontradas } from "./acoes";
 
 type Item = ResultadoEncontradas["itens"][number];
@@ -40,7 +40,8 @@ export function BuscarEmpresas({ aberto, setAberto, onImportado }: { aberto: boo
   const [soTelefone, setSoTelefone] = React.useState(false);
   const [soCelular, setSoCelular] = React.useState(false);
   const [notaMin, setNotaMin] = React.useState(0);
-  const [usarOsm, setUsarOsm] = React.useState(false);
+  const [fonte, setFonte] = React.useState<FonteBusca>("receita");
+  const [soEmail, setSoEmail] = React.useState(false);
   const [resp, setResp] = React.useState<string[]>([perfil.id]);
   const [porDia, setPorDia] = React.useState(10);
   const [carregando, setCarregando] = React.useState<"buscar" | "mais" | "importar" | null>(null);
@@ -57,7 +58,7 @@ export function BuscarEmpresas({ aberto, setAberto, onImportado }: { aberto: boo
     const alvo = mais && busca ? busca : { nicho: nicho.trim(), cidade: cidade.trim(), uf };
     if (!alvo.nicho || !alvo.cidade) return void toast.error("Informe o nicho e a cidade.");
     setCarregando(mais ? "mais" : "buscar");
-    const r = await chamar(buscarEmpresas(alvo.nicho, alvo.cidade, alvo.uf, mais ? res?.proxima : null, usarOsm ? "osm" : undefined));
+    const r = await chamar(buscarEmpresas(alvo.nicho, alvo.cidade, alvo.uf, mais ? res?.proxima : null, fonte));
     setCarregando(null);
     if (!r.ok) return void toast.error(r.erro);
     gravarPref("busca:cidade", alvo.cidade); gravarPref("busca:uf", alvo.uf);
@@ -70,7 +71,7 @@ export function BuscarEmpresas({ aberto, setAberto, onImportado }: { aberto: boo
     if (!d.itens.length) toast.info(d.temGoogle ? "Nada encontrado. Tente outro termo para o nicho (ex.: “dentista” em vez de “clínica odontológica”)." : "O OpenStreetMap não tem empresas desse nicho nessa cidade. Tente um termo mais simples (ex.: “dentista”, “padaria”) ou ative o Google Maps, que acha quase todas.", { duration: 9000 });
   }
 
-  const passa = (i: Item) => (!soTelefone || Boolean(i.telefone)) && (!soCelular || i.celular) && (!notaMin || (i.nota ?? 0) >= notaMin);
+  const passa = (i: Item) => (!soEmail || Boolean(i.email)) && (!soTelefone || Boolean(i.telefone)) && (!soCelular || i.celular) && (!notaMin || (i.nota ?? 0) >= notaMin);
   const visiveis = res?.itens.filter(passa) ?? [];
   const escolhidos = visiveis.filter((i) => marcados.has(i.id) && pode(i));
   const todosMarcados = visiveis.filter(pode).length > 0 && visiveis.filter(pode).every((i) => marcados.has(i.id));
@@ -91,8 +92,7 @@ export function BuscarEmpresas({ aberto, setAberto, onImportado }: { aberto: boo
     onImportado();
   }
 
-  const fonteNome = res?.fonte === "google" ? "Google Maps" : "OpenStreetMap";
-
+  
   return (
     <Dialog open={aberto} onOpenChange={setAberto} title="Buscar empresas para prospectar" className="max-w-4xl"
       description="Escolha o nicho, a cidade e o estado. O painel traz as empresas e você escolhe quais entram na prospecção."
@@ -118,7 +118,7 @@ export function BuscarEmpresas({ aberto, setAberto, onImportado }: { aberto: boo
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="bz-nicho">Nicho</Label>
             <Input id="bz-nicho" list="bz-nichos" value={nicho} onChange={(e) => setNicho(e.target.value)} placeholder="Ex.: clínica odontológica" autoFocus />
-            <datalist id="bz-nichos">{NICHOS.map((n) => <option key={n} value={n} />)}</datalist>
+            <datalist id="bz-nichos">{[...new Set([...NICHOS_RECEITA, ...NICHOS])].map((n) => <option key={n} value={n} />)}</datalist>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="bz-cidade">Cidade</Label>
@@ -133,21 +133,39 @@ export function BuscarEmpresas({ aberto, setAberto, onImportado }: { aberto: boo
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-fg-muted">Filtros:</span>
-          {([["Com telefone", soTelefone, setSoTelefone], ["Celular (WhatsApp)", soCelular, setSoCelular]] as const).map(([r, v, set]) => (
+          {([["Com e-mail", soEmail, setSoEmail], ["Com telefone", soTelefone, setSoTelefone], ["Celular (WhatsApp)", soCelular, setSoCelular]] as const).map(([r, v, set]) => (
             <button key={r} type="button" aria-pressed={v} onClick={() => set(!v)}
               className={cn("h-7 rounded-full border px-2.5 transition-colors", v ? "border-transparent bg-accent-soft text-fg" : "border-border text-fg-muted hover:border-border-strong")}>{r}</button>
           ))}
           <Select aria-label="Nota mínima" value={String(notaMin)} onChange={(e) => setNotaMin(Number(e.target.value))} className="h-7 text-xs">
             <option value="0">Qualquer nota</option><option value="4">Nota 4+</option><option value="4.5">Nota 4,5+</option>
           </Select>
-          <span className="ml-auto text-fg-subtle">
-            {res ? `Fonte: ${fonteNome}` : "Fonte: Google Maps se a chave estiver configurada; senão OpenStreetMap (grátis)"}
-            {res?.temGoogle && (
-              <label className="ml-2 inline-flex items-center gap-1"><input type="checkbox" checked={usarOsm} onChange={(e) => setUsarOsm(e.target.checked)} /> usar OpenStreetMap</label>
-            )}
-          </span>
+          <label className="ml-auto flex items-center gap-1.5 text-fg-muted">
+            Fonte
+            <Select aria-label="Fonte" value={fonte} onChange={(e) => setFonte(e.target.value as FonteBusca)} className="h-7 text-xs">
+              <option value="receita">Base da Receita (no painel)</option>
+              <option value="osm">OpenStreetMap</option>
+              {res?.temGoogle && <option value="google">Google Maps</option>}
+            </Select>
+          </label>
         </div>
-        {res && !res.temGoogle && (
+        {res?.fonte === "receita" && (
+          <p className="rounded-xl bg-bloco-inset px-3 py-2 text-xs text-fg-muted">
+            {res.total} {res.total === 1 ? "empresa" : "empresas"} na base da Receita Federal{res.atualizado ? ` (atualizada em ${res.atualizado.split("-").reverse().join("/")})` : ""}: ativas, sem MEI, com telefone ou e-mail. Quem tem e-mail e celular aparece primeiro.
+            O telefone é o declarado à Receita (às vezes é fixo ou do contador).
+          </p>
+        )}
+        {res && res.fonte !== "receita" && fonte === "receita" && !res.ufsBase.includes(busca?.uf ?? "") && (
+          <p className="rounded-xl bg-bloco-inset px-3 py-2 text-xs text-fg-muted">
+            A base da Receita ainda não tem {busca?.uf}{res.ufsBase.length ? ` (carregados: ${res.ufsBase.join(", ")})` : " (ainda não foi carregada)"}. Usei o OpenStreetMap.
+          </p>
+        )}
+        {res && res.fonte === "osm" && res.ufsBase.includes(busca?.uf ?? "") && fonte === "receita" && (
+          <p className="rounded-xl bg-bloco-inset px-3 py-2 text-xs text-fg-muted">
+            Esse nicho não tem um ramo (CNAE) correspondente na base da Receita; usei o OpenStreetMap. Tente um dos nichos sugeridos (ex.: “dentista”, “padaria”, “contabilidade”).
+          </p>
+        )}
+        {res && res.fonte === "osm" && !res.temGoogle && fonte === "osm" && (
           <p className="rounded-xl bg-bloco-inset px-3 py-2 text-xs text-fg-muted">
             Buscando no OpenStreetMap (grátis): no Brasil ele tem menos empresas e quase nunca telefone. Com a chave do Google Maps na Vercel (GOOGLE_MAPS_API_KEY), a busca traz telefone, site e nota de quase todas.
           </p>
@@ -179,8 +197,9 @@ export function BuscarEmpresas({ aberto, setAberto, onImportado }: { aberto: boo
                     </td>
                     <td className="px-2 py-2 text-xs">
                       {i.telefone && <span className="flex items-center gap-1"><Phone className="size-3" /> <span className="num">{i.telefone}</span>{i.celular && <Badge tone="success">WhatsApp</Badge>}</span>}
+                      {i.email && <span className="flex max-w-56 items-center gap-1 truncate text-fg-muted"><Mail className="size-3 shrink-0" /> {i.email}</span>}
                       {i.site && <a href={/^https?:/.test(i.site) ? i.site : `https://${i.site}`} target="_blank" rel="noreferrer" className="flex max-w-48 items-center gap-1 truncate text-fg-muted hover:text-fg"><Globe className="size-3 shrink-0" /> {i.site.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</a>}
-                      {!i.telefone && !i.site && <span className="text-fg-subtle">—</span>}
+                      {!i.telefone && !i.site && !i.email && <span className="text-fg-subtle">—</span>}
                     </td>
                     <td className="num px-2 py-2 text-xs">{i.nota ? <span className="flex items-center gap-1"><Star className="size-3 text-warning" /> {i.nota.toFixed(1)} <span className="text-fg-subtle">({i.avaliacoes ?? 0})</span></span> : "—"}</td>
                     <td className="px-2 py-2 text-right">
@@ -197,8 +216,8 @@ export function BuscarEmpresas({ aberto, setAberto, onImportado }: { aberto: boo
         ))}
         {res && (
           <div className="flex items-center justify-between text-xs text-fg-muted">
-            <span>{visiveis.length} de {res.itens.length} {res.itens.length === 1 ? "empresa" : "empresas"} · {escolhidos.length} {escolhidos.length === 1 ? "escolhida" : "escolhidas"}</span>
-            {res.proxima && <Button size="sm" onClick={() => buscar(undefined, true)} disabled={carregando !== null}>{carregando === "mais" ? "Carregando…" : "Carregar mais 20"}</Button>}
+            <span>{visiveis.length} de {res.total ?? res.itens.length} {(res.total ?? res.itens.length) === 1 ? "empresa" : "empresas"} · {escolhidos.length} {escolhidos.length === 1 ? "escolhida" : "escolhidas"}</span>
+            {res.proxima && <Button size="sm" onClick={() => buscar(undefined, true)} disabled={carregando !== null}>{carregando === "mais" ? "Carregando…" : `Carregar mais ${res.fonte === "receita" ? 50 : 20}`}</Button>}
           </div>
         )}
       </div>
